@@ -1,0 +1,40 @@
+# Core framework
+Django>=6.0
+djangorestframework>=3.17
+djangorestframework-simplejwt>=5.5
+django-cors-headers>=4.9
+
+# Database
+psycopg2-binary>=2.9
+
+# Face recognition
+deepface>=0.0.99
+tf-keras>=2.21           # required by deepface/retinaface with TF 2.x + Keras 3
+tensorflow>=2.21         # neural network backend for Facenet512
+# Note: opencv-python is installed automatically as a deepface dependency
+
+# Data processing
+numpy>=2.0
+Pillow>=10.0
+pandas>=2.0
+
+# Fuzzy name matching
+rapidfuzz>=3.0
+
+# Reporting
+reportlab>=4.0
+openpyxl>=3.1
+
+# Runtime utilities
+python-decouple>=3.8
+gunicorn>=21.2
+requests>=2.30          # used for downloading model weights
+
+# Note: After fresh install, pre-download Facenet512 model weights:
+#   python manage.py shell -c "
+#     import requests, pathlib
+#     url='https://github.com/serengil/deepface_models/releases/download/v1.0/facenet512_weights.h5'
+#     dest=pathlib.Path.home()/'.deepface'/'weights'/'facenet512_weights.h5'
+#     dest.parent.mkdir(parents=True,exist_ok=True)
+#     r=requests.get(url,stream=True); dest.write_bytes(r.content)
+#   "

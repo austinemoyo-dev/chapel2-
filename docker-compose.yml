@@ -1,0 +1,80 @@
+version: '3.8'
+
+# All sensitive values come from the .env file — never hardcoded here.
+# Copy .env.example to .env and fill in every <CHANGE_THIS> before running.
+
+services:
+
+  # ── PostgreSQL database ────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Django backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    restart: always
+    environment:
+      - DJANGO_DEBUG=False
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DEEPFACE_MODEL=${DEEPFACE_MODEL:-Facenet512}
+      - DEEPFACE_DETECTOR=${DEEPFACE_DETECTOR:-opencv}
+      - DEEPFACE_MATCH_THRESHOLD=${DEEPFACE_MATCH_THRESHOLD:-0.30}
+      - FUZZY_NAME_MATCH_THRESHOLD=${FUZZY_NAME_MATCH_THRESHOLD:-85}
+      - MATRIC_UPDATE_TOKEN_EXPIRY_HOURS=${MATRIC_UPDATE_TOKEN_EXPIRY_HOURS:-48}
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - deepface_weights:/root/.deepface/weights
+      - chapel_logs:/var/log/chapel
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 chapel.wsgi:application"
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # ── Next.js frontend ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_APP_DOMAIN=${NEXT_PUBLIC_APP_DOMAIN}
+      - BACKEND_INTERNAL_URL=http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+  deepface_weights:
+  chapel_logs:

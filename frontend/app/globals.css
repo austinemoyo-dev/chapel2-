@@ -1,0 +1,606 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* ============================================================================
+   Design System — Chapel Attendance PWA
+   Samsung One UI Inspired · Chapel White & Purple · World-Class Light Theme
+   ============================================================================ */
+
+@theme inline {
+  /* === Backgrounds & Surfaces === */
+  --color-background: #FAF9FF;
+  --color-foreground: #0D0B1A;
+  --color-surface:    #FFFFFF;
+  --color-surface-2:  #F4F2FB;
+  --color-surface-3:  #EAE7F6;
+  --color-border:     #E4E1F0;
+  --color-border-light: #EDE9F8;
+  --color-muted:      #6E6A8A;
+
+  /* === Chapel Purple Palette === */
+  --color-primary:       #7C3AED;
+  --color-primary-hover: #6D28D9;
+  --color-primary-light: #9F67F7;
+  --color-primary-deep:  #4C1D95;
+  --color-primary-muted: #EDE9FB;
+  --color-accent:        #A855F7;
+  --color-accent-light:  #C084FC;
+
+  /* === Semantic — Success === */
+  --color-success:       #059669;
+  --color-success-muted: #ECFDF5;
+
+  /* === Semantic — Danger === */
+  --color-danger:        #DC2626;
+  --color-danger-muted:  #FEF2F2;
+
+  /* === Semantic — Warning === */
+  --color-warning:       #D97706;
+  --color-warning-muted: #FFFBEB;
+
+  /* === Semantic — Info === */
+  --color-info:          #2563EB;
+  --color-info-muted:    #EFF6FF;
+
+  /* === Typography === */
+  --font-sans:    'Inter',  ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Outfit', 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* === Shadows (Samsung One UI soft + colored depth) === */
+  --shadow-xs:            0 1px 2px rgba(13,11,26,0.04);
+  --shadow-sm:            0 2px 6px rgba(13,11,26,0.05), 0 1px 2px rgba(13,11,26,0.03);
+  --shadow-md:            0 4px 12px rgba(13,11,26,0.06), 0 1px 3px rgba(13,11,26,0.04);
+  --shadow-premium:       0 4px 6px -1px rgba(13,11,26,0.02), 0 12px 28px -4px rgba(124,58,237,0.07);
+  --shadow-premium-hover: 0 8px 16px -2px rgba(13,11,26,0.04), 0 24px 32px -6px rgba(124,58,237,0.12);
+  --shadow-primary:       0 8px 24px -4px rgba(124,58,237,0.38), 0 3px 8px -2px rgba(124,58,237,0.22);
+  --shadow-primary-hover: 0 16px 36px -4px rgba(124,58,237,0.44), 0 8px 16px -4px rgba(124,58,237,0.28);
+  --shadow-card:          0 1px 3px rgba(13,11,26,0.04), 0 4px 16px rgba(13,11,26,0.04), 0 0 0 1px rgba(228,225,240,0.8);
+  --shadow-card-hover:    0 2px 6px rgba(13,11,26,0.05), 0 8px 24px rgba(124,58,237,0.08), 0 0 0 1px rgba(124,58,237,0.12);
+}
+
+/* ============================================================================
+   Global Resets & Base
+   ============================================================================ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+  /* honour iOS notch / Dynamic Island safe areas */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-image:
+    radial-gradient(ellipse at 0% 0%,   rgba(124,58,237,0.04) 0px, transparent 55%),
+    radial-gradient(ellipse at 100% 0%,  rgba(168,85,247,0.04) 0px, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(124,58,237,0.03) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* ============================================================================
+   Keyframe Animations
+   ============================================================================ */
+
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down-fade {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Church-specific */
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-8px) rotate(0.5deg); }
+  66%       { transform: translateY(-4px) rotate(-0.5deg); }
+}
+
+@keyframes light-ray-pulse {
+  0%, 100% { opacity: 0.25; transform: scaleX(1); }
+  50%       { opacity: 0.45; transform: scaleX(1.04); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(124,58,237,0.15); }
+  50%       { box-shadow: 0 0 36px rgba(124,58,237,0.30), 0 0 60px rgba(124,58,237,0.10); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes ping-slow {
+  0%        { transform: scale(1);   opacity: 0.8; }
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes cross-appear {
+  from { opacity: 0; transform: scale(0.85) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes wave-rise {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* ============================================================================
+   Animation Utility Classes
+   ============================================================================ */
+
+.animate-slide-up-fade  { animation: slide-up-fade  0.65s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-slide-in-left  { animation: slide-in-left  0.5s  cubic-bezier(0.16,1,0.3,1) both; }
+.animate-fade-in        { animation: fade-in        0.4s  ease both; }
+.animate-scale-in       { animation: scale-in       0.45s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-float-subtle   { animation: float-subtle   9s ease-in-out infinite; }
+.animate-glow-pulse     { animation: glow-pulse     3s ease-in-out infinite; }
+.animate-ping-slow      { animation: ping-slow      2s cubic-bezier(0,0,0.2,1) infinite; }
+.animate-ray-pulse      { animation: light-ray-pulse 4s ease-in-out infinite; }
+.animate-cross-appear   { animation: cross-appear   0.8s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-wave-rise      { animation: wave-rise      0.7s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-slide-up       { animation: slide-up-fade  0.35s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ============================================================================
+   Samsung One UI Card System
+   ============================================================================ */
+
+.card-one-ui {
+  background: var(--color-surface);
+  border-radius: 2rem;
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(228,225,240,0.7);
+  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+}
+
+.card-one-ui:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: rgba(124,58,237,0.15);
+  transform: translateY(-3px);
+}
+
+.card-one-ui:active {
+  transform: scale(0.985) translateY(-1px);
+}
+
+.premium-card {
+  background: var(--color-surface);
+  border-radius: 2rem;
+  box-shadow: var(--shadow-premium);
+  border: 1px solid rgba(228,225,240,0.6);
+  transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+
+.premium-card:hover {
+  transform: translateY(-4px) scale(1.005);
+  box-shadow: var(--shadow-premium-hover);
+  border-color: rgba(124,58,237,0.12);
+}
+
+.primary-card {
+  transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+  box-shadow: var(--shadow-primary);
+}
+
+.primary-card:hover {
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: var(--shadow-primary-hover);
+}
+
+.primary-card:active {
+  transform: scale(0.98);
+}
+
+/* ============================================================================
+   Glass Morphism
+   ============================================================================ */
+
+.glass {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 8px 32px rgba(124,58,237,0.06), 0 1px 0 rgba(255,255,255,0.8) inset;
+}
+
+.glass-dark {
+  background: rgba(76,29,149,0.08);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(124,58,237,0.12);
+}
+
+/* ============================================================================
+   Church / Chapel Theme Utilities
+   ============================================================================ */
+
+.bg-mesh-purple {
+  background-color: var(--color-primary);
+  background-image:
+    radial-gradient(at 90% 10%, rgba(168,85,247,0.8)   0px, transparent 55%),
+    radial-gradient(at 10% 90%, rgba(76,29,149,0.9)    0px, transparent 55%),
+    radial-gradient(at 50% 50%, rgba(124,58,237,0.6)   0px, transparent 70%);
+}
+
+.bg-chapel-gradient {
+  background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #6D28D9 100%);
+}
+
+.chapel-glow {
+  position: relative;
+}
+.chapel-glow::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(124,58,237,0.4), rgba(168,85,247,0.3));
+  filter: blur(16px);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+.chapel-glow:hover::after { opacity: 1; }
+
+.shimmer-loading {
+  background: linear-gradient(90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+}
+
+/* ============================================================================
+   Scrollbar
+   ============================================================================ */
+
+::-webkit-scrollbar        { width: 5px; height: 5px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--color-surface-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* ============================================================================
+   Focus / Interaction
+   ============================================================================ */
+
+:focus-visible {
+  outline: 2.5px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================================
+   iOS 26 / Samsung One UI 8 — Liquid Glass & Glassmorphism
+   ============================================================================ */
+
+/*
+ * Liquid glass uses three visual layers:
+ *  1. Frosted blur (backdrop-filter)
+ *  2. Specular gradient (top-left bright edge, bottom-right shadow edge)
+ *  3. Thin edge highlight (1px inset border-top = bright, border-bottom = dark)
+ */
+
+/* Full liquid glass panel — deepest blur, registration & auth cards */
+.glass-panel {
+  background: rgba(255,255,255,0.62);
+  backdrop-filter: blur(48px) saturate(220%) brightness(112%);
+  -webkit-backdrop-filter: blur(48px) saturate(220%) brightness(112%);
+  border: 1px solid rgba(255,255,255,0.50);
+  /* Multi-layer specular shadows */
+  box-shadow:
+    0 1px 0   rgba(255,255,255,0.75) inset,   /* top specular highlight */
+    0 -1px 0  rgba(0,0,0,0.06)       inset,   /* bottom shadow rim      */
+    0 2px 4px  rgba(0,0,0,0.05),
+    0 8px 24px rgba(0,0,0,0.09),
+    0 32px 64px rgba(0,0,0,0.07),
+    0 0 0 0.5px rgba(255,255,255,0.3) inset;
+  position: relative;
+  overflow: hidden;
+}
+/* Specular diagonal gradient overlay */
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.30) 0%,
+    rgba(255,255,255,0.08) 35%,
+    rgba(255,255,255,0.00) 60%,
+    rgba(0,0,0,0.02) 100%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+.glass-panel > * { position: relative; z-index: 1; }
+
+/* Medium glass card — event cards, sermon cards, dashboard cards */
+.glass-card {
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(32px) saturate(200%) brightness(110%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%) brightness(110%);
+  border: 1px solid rgba(255,255,255,0.42);
+  box-shadow:
+    0 1px 0   rgba(255,255,255,0.70) inset,
+    0 -1px 0  rgba(0,0,0,0.04)       inset,
+    0 4px 16px rgba(0,0,0,0.07),
+    0 16px 40px rgba(139,0,255,0.06);
+  border-radius: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.25) 0%,
+    rgba(255,255,255,0.05) 40%,
+    transparent 60%
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Purple liquid glass — hero overlays, stats pills */
+.glass-purple {
+  background: rgba(139,0,255,0.14);
+  backdrop-filter: blur(24px) saturate(180%) brightness(120%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(120%);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.30) inset,
+    0 4px 20px rgba(139,0,255,0.12);
+}
+
+/* Dark glass — for overlays on camera / hero sections */
+.glass-dark {
+  background: rgba(10,0,30,0.45);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 4px 24px rgba(0,0,0,0.30);
+}
+
+/* Frosted input — form fields on glass panels */
+.input-glass {
+  background: rgba(255,255,255,0.50);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255,255,255,0.55);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.65) inset,
+    0 2px 8px rgba(0,0,0,0.04);
+  transition: all 0.25s ease;
+}
+.input-glass:focus {
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(139,0,255,0.55);
+  box-shadow:
+    0 0 0 3.5px rgba(139,0,255,0.13),
+    0 1px 0 rgba(255,255,255,0.75) inset;
+  outline: none;
+}
+
+/* Purple gradient backgrounds */
+.bg-purple-gradient {
+  background: linear-gradient(145deg, #1A0040 0%, #5000AA 30%, #8B00FF 60%, #B040FF 85%, #D080FF 100%);
+}
+.bg-purple-gradient-soft {
+  background: linear-gradient(150deg, #F3EAFF 0%, #EACFFF 30%, #F7EEFF 65%, #FDF9FF 100%);
+}
+
+/* Liquid button — primary CTA */
+.btn-liquid {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.btn-liquid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.30) 0%,
+    rgba(255,255,255,0.05) 50%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+.btn-liquid:hover  { transform: translateY(-2px) scale(1.02); }
+.btn-liquid:active { transform: scale(0.97); transition-duration: 0.1s; }
+
+/* Card lift — spring hover */
+.card-lift {
+  transition: transform 0.40s cubic-bezier(0.34,1.56,0.64,1),
+              box-shadow 0.40s cubic-bezier(0.34,1.56,0.64,1);
+}
+.card-lift:hover  { transform: translateY(-7px) scale(1.015); }
+.card-lift:active { transform: scale(0.97); transition-duration: 0.12s; }
+
+/* One UI 8 section label */
+.section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Divider fade */
+.divider-fade {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--color-border), transparent);
+}
+
+/* ============================================================================
+   Scroll Reveal — triggered by IntersectionObserver (useScrollReveal hook)
+   ============================================================================ */
+
+.sr-hidden {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s cubic-bezier(0.16,1,0.3,1),
+              transform 0.65s cubic-bezier(0.16,1,0.3,1);
+}
+.sr-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sr-hidden-left {
+  opacity: 0;
+  transform: translateX(-28px);
+  transition: opacity 0.65s cubic-bezier(0.16,1,0.3,1),
+              transform 0.65s cubic-bezier(0.16,1,0.3,1);
+}
+.sr-visible-left { opacity: 1; transform: translateX(0); }
+
+.sr-hidden-scale {
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 0.55s cubic-bezier(0.16,1,0.3,1),
+              transform 0.55s cubic-bezier(0.16,1,0.3,1);
+}
+.sr-visible-scale { opacity: 1; transform: scale(1); }
+
+/* ============================================================================
+   Landing Page Animations
+   ============================================================================ */
+
+@keyframes hero-entrance {
+  from { opacity: 0; transform: translateY(32px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes logo-pop {
+  0%   { opacity: 0; transform: scale(0.7) rotate(-8deg); }
+  60%  { transform: scale(1.06) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes slide-up-spring {
+  0%   { opacity: 0; transform: translateY(40px); }
+  60%  { transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes orbit-slow {
+  from { transform: rotate(0deg) translateX(180px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(180px) rotate(-360deg); }
+}
+@keyframes pulse-ring {
+  0%        { transform: scale(0.9);  opacity: 0.8; }
+  70%, 100% { transform: scale(1.35); opacity: 0; }
+}
+
+.animate-hero-entrance   { animation: hero-entrance   0.9s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-logo-pop        { animation: logo-pop        0.7s cubic-bezier(0.34,1.56,0.64,1) both; }
+.animate-slide-up-spring { animation: slide-up-spring 0.7s cubic-bezier(0.34,1.2,0.64,1) both; }
+.animate-card-rise       { animation: card-rise       0.55s cubic-bezier(0.16,1,0.3,1) both; }
+.animate-pulse-ring      { animation: pulse-ring 2.2s cubic-bezier(0,0,0.2,1) infinite; }
+
+/* ============================================================================
+   Face Capture Oval States
+   ============================================================================ */
+
+@keyframes oval-idle {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 0.85; }
+}
+@keyframes oval-hold {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(139,0,255,0.3); }
+  50%       { box-shadow: 0 0 0 8px rgba(139,0,255,0.15), 0 0 30px rgba(139,0,255,0.2); }
+}
+@keyframes oval-success-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(5,150,105,0.5); }
+  50%       { box-shadow: 0 0 0 8px rgba(5,150,105,0.15), 0 0 24px rgba(5,150,105,0.3); }
+}
+
+.oval-idle    { animation: oval-idle        2.4s ease-in-out infinite; }
+.oval-hold    { animation: oval-hold        1.4s ease-in-out infinite; }
+.oval-success { animation: oval-success-pulse 1.2s ease-in-out infinite; }
+
+/* ============================================================================
+   Typography Utilities
+   ============================================================================ */
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================================================
+   Nav Active Pill (admin sidebar)
+   ============================================================================ */
+
+.nav-pill-active {
+  background: linear-gradient(135deg, rgba(124,58,237,0.12), rgba(168,85,247,0.08));
+  color: var(--color-primary);
+  border: 1px solid rgba(124,58,237,0.15);
+}
+
+/* ============================================================================
+   Status Dot
+   ============================================================================ */
+
+.status-dot-live {
+  position: relative;
+  display: inline-flex;
+}
+.status-dot-live::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-success);
+  animation: ping-slow 1.8s cubic-bezier(0,0,0.2,1) infinite;
+}
