@@ -19,14 +19,15 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: process.env.NEXT_PUBLIC_APP_DOMAIN || '', // Production domain
+        hostname: process.env.NEXT_PUBLIC_APP_DOMAIN || 'localhost',
       },
       {
         protocol: 'http',
-        hostname: 'backend', // Docker internal hostname
+        hostname: 'backend',
         port: '8000',
       }
-    ].filter(p => p.hostname),
+    ],
+    unoptimized: true,
   },
 
   // Headers for service worker scope

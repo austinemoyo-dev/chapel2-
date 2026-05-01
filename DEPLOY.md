@@ -112,8 +112,8 @@ sudo certbot renew --dry-run
 ```bash
 # On the VPS — clone your repository
 cd /home/deploy
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git chapel
-cd chapel
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git chapel1
+cd chapel1
 ```
 
 ---
