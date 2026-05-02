@@ -77,9 +77,13 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value):
-        """Strip whitespace from phone number."""
+        """Strip non-digits and enforce exactly 11 digits."""
         if value:
-            return value.strip()
+            import re
+            clean_phone = re.sub(r'\D', '', str(value))
+            if len(clean_phone) != 11:
+                raise serializers.ValidationError('Phone number must be exactly 11 digits.')
+            return clean_phone
         return value
 
     def validate_matric_number(self, value):

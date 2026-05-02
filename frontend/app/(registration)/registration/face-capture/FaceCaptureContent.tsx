@@ -433,19 +433,19 @@ function FaceCaptureInner() {
 
   // Derived oval state for color-coding
   const ovalColor = (() => {
-    if (phase === 'result' && lastRejectionReason) return 'border-danger shadow-[0_0_24px_rgba(220,38,38,0.35)]';
-    if (phase === 'result')      return 'border-success shadow-[0_0_24px_rgba(5,150,105,0.4)] oval-success';
-    if (phase === 'countdown')   return 'border-success shadow-[0_0_18px_rgba(5,150,105,0.3)]';
-    if (phase === 'hold-still')  return 'border-primary oval-hold';
-    if (frameData && frameData.skinRatio > 0.5) return 'border-blue-400/70 oval-idle';
-    return 'border-white/30 oval-idle';
+    if (phase === 'result' && lastRejectionReason) return 'border-danger shadow-[0_0_30px_rgba(220,38,38,0.5)]';
+    if (phase === 'result')      return 'border-success shadow-[0_0_30px_rgba(5,150,105,0.5)] oval-success';
+    if (phase === 'countdown')   return 'border-success shadow-[0_0_30px_rgba(5,150,105,0.5)]';
+    if (phase === 'hold-still')  return 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.4)] oval-hold';
+    if (frameData && frameData.skinRatio > 0.5) return 'border-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.3)] oval-idle';
+    return 'border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.1)] oval-idle';
   })();
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in pb-10">
 
       {/* ── Step guide banner ── */}
-      <div className="px-5 pt-5 pb-3">
+      <div className="mx-4 mt-4 px-5 pt-5 pb-3 glass-panel mb-4">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1">
             <h2 className="text-base font-black text-foreground">Face Capture</h2>
@@ -517,7 +517,8 @@ function FaceCaptureInner() {
         {/* Colour-coded oval guide */}
         <div className="absolute inset-0 flex items-start justify-center pointer-events-none"
              style={{ paddingTop: '6%' }}>
-          <div className={`w-[58%] aspect-[3/4] rounded-full border-[3px] transition-all duration-400 ${ovalColor}`}/>
+          <div className={`w-[58%] aspect-[3/4] rounded-[50%] border-[4px] transition-all duration-500 ease-out ${ovalColor}`}
+               style={{ backdropFilter: phase === 'countdown' ? 'brightness(1.1)' : 'none' }} />
         </div>
 
         {/* Alignment dots (corners of face guide) */}
@@ -536,9 +537,9 @@ function FaceCaptureInner() {
 
         {/* Scanning sweep line */}
         {(phase === 'positioning' || phase === 'hold-still') && (
-          <div className="absolute left-[21%] right-[21%] h-px bg-gradient-to-r
-                          from-transparent via-primary/70 to-transparent
-                          animate-scan-line pointer-events-none"/>
+          <div className="absolute left-[20%] right-[20%] h-[2px] bg-gradient-to-r
+                          from-transparent via-primary to-transparent
+                          animate-scan-line pointer-events-none shadow-[0_0_10px_rgba(124,58,237,0.8)]"/>
         )}
 
         {/* Countdown */}
@@ -603,16 +604,16 @@ function FaceCaptureInner() {
       </div>
 
       {/* ── Instruction banner ── */}
-      <div className="px-5 pt-4 pb-2">
-        <div className={`flex items-center gap-3 p-4 rounded-2xl transition-all duration-300 ${
-          instruction.type === 'success' ? 'bg-success-muted border border-success/20' :
-          instruction.type === 'error'   ? 'bg-danger-muted  border border-danger/20'  :
-          instruction.type === 'warning' ? 'bg-warning-muted border border-warning/20' :
-                                           'bg-primary-muted border border-primary/15'
+      <div className="px-4 pt-4 pb-2">
+        <div className={`flex items-center gap-3 p-4 rounded-2xl transition-all duration-300 glass-card ${
+          instruction.type === 'success' ? 'border-success/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)]' :
+          instruction.type === 'error'   ? 'border-danger/30 shadow-[0_4px_16px_rgba(220,38,38,0.15)]'  :
+          instruction.type === 'warning' ? 'border-warning/30 shadow-[0_4px_16px_rgba(245,158,11,0.15)]' :
+                                           'border-primary/20 shadow-[0_4px_16px_rgba(124,58,237,0.1)]'
         }`}>
-          <span className="text-2xl">{instruction.icon}</span>
+          <span className="text-2xl drop-shadow-md">{instruction.icon}</span>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-bold ${
+            <p className={`text-[15px] font-black ${
               instruction.type === 'success' ? 'text-success' :
               instruction.type === 'error'   ? 'text-danger'  :
               instruction.type === 'warning' ? 'text-warning' : 'text-primary'
@@ -623,16 +624,16 @@ function FaceCaptureInner() {
 
       {/* ── Quick tips ── */}
       {(phase === 'positioning' || phase === 'initializing') && (
-        <div className="px-5 pb-2">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="px-4 pb-2">
+          <div className="grid grid-cols-3 gap-3">
             {[
               { icon: '💡', tip: 'Face a bright window or lamp' },
               { icon: '👓', tip: 'Remove glasses if possible' },
               { icon: '😐', tip: 'Look straight at the camera' },
             ].map((t) => (
-              <div key={t.tip} className="bg-surface-2 rounded-xl p-2.5 text-center">
-                <div className="text-lg mb-1">{t.icon}</div>
-                <p className="text-[10px] text-muted font-medium leading-tight">{t.tip}</p>
+              <div key={t.tip} className="glass-card rounded-xl p-3 text-center transition-transform hover:-translate-y-0.5">
+                <div className="text-xl mb-1.5 drop-shadow-sm">{t.icon}</div>
+                <p className="text-[10px] text-foreground/70 font-bold leading-tight">{t.tip}</p>
               </div>
             ))}
           </div>
@@ -640,20 +641,18 @@ function FaceCaptureInner() {
       )}
 
       {/* ── Actions ── */}
-      <div className="px-5 pb-5 space-y-2">
+      <div className="px-4 pb-5 space-y-3 mt-2">
         {/* Manual capture fallback */}
         {(showManualFallback || manualMode) && phase !== 'uploading' && phase !== 'capturing' && (
           manualMode ? (
             <button onClick={handleManualCapture}
-                    className="w-full py-3.5 rounded-2xl bg-primary text-white font-black text-base
-                               hover:bg-primary-hover active:scale-95 transition-all
-                               shadow-[0_4px_20px_rgba(139,0,255,0.35)]">
+                    className="btn-liquid w-full py-4 rounded-[1.2rem] font-black text-[0.95rem] text-white">
               Capture Now
             </button>
           ) : (
             <button onClick={() => setManualMode(true)}
-                    className="w-full py-2.5 rounded-2xl bg-surface-2 border border-border
-                               text-sm font-semibold text-muted hover:text-foreground transition-colors">
+                    className="w-full py-3 rounded-xl glass-panel border border-border
+                               text-sm font-bold text-muted hover:text-primary transition-colors">
               Having trouble? Switch to manual capture
             </button>
           )
@@ -662,33 +661,14 @@ function FaceCaptureInner() {
         {/* Continue early once minimum met */}
         {approved >= MIN_SAMPLES && (
           <button onClick={handleComplete}
-                  className="w-full py-4 rounded-2xl bg-success text-white font-black text-base
-                             hover:brightness-110 active:scale-95 transition-all
-                             shadow-[0_4px_20px_rgba(5,150,105,0.4)]">
+                  className="btn-liquid w-full py-4 rounded-[1.2rem] font-black text-[0.95rem] text-white
+                             shadow-[0_4px_20px_rgba(5,150,105,0.4)]"
+                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
             Continue with {approved} Samples ✓
           </button>
         )}
       </div>
 
-      {/* Tips (original section – kept for additional detail) */}
-      {phase === 'positioning' && total === 0 && (
-        <div className="bg-surface-2 rounded-xl p-3.5 space-y-2 border border-border">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">Tips for best results</p>
-          <div className="grid gap-1.5">
-            {[
-              { icon: '💡', tip: 'Face a light source for even lighting' },
-              { icon: '🎯', tip: 'Center your face in the oval guide' },
-              { icon: '👓', tip: 'Remove glasses or headwear if possible' },
-              { icon: '📱', tip: 'Hold your device at eye level' },
-            ].map(({ icon, tip }) => (
-              <div key={tip} className="flex items-center gap-2 text-xs text-muted">
-                <span>{icon}</span>
-                <span>{tip}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

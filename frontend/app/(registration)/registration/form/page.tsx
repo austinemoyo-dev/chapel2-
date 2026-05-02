@@ -137,8 +137,11 @@ function RegistrationFormContent() {
     const e: Record<string, string> = {};
     if (!form.full_name.trim() || form.full_name.trim().split(/\s+/).length < 2)
       e.full_name = 'Enter your full name (at least first and last name)';
-    if (!form.phone_number.trim())
-      e.phone_number = 'Phone number is required';
+    
+    const cleanPhone = form.phone_number.replace(/\D/g, '');
+    if (cleanPhone.length !== 11)
+      e.phone_number = 'Phone number must be exactly 11 digits';
+      
     if (studentType === 'old' && !form.matric_number.trim())
       e.matric_number = 'Matric number is required';
     if (!form.faculty)
@@ -304,7 +307,6 @@ function RegistrationFormContent() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="user"
             className="hidden"
             onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
           />
@@ -329,9 +331,13 @@ function RegistrationFormContent() {
           <FieldRow label="Phone Number" error={errors.phone_number}>
             <input
               type="tel"
-              placeholder="+234 810 000 0000"
+              placeholder="08100000000"
+              maxLength={11}
               value={form.phone_number}
-              onChange={(e) => handleChange('phone_number', e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                if (val.length <= 11) handleChange('phone_number', val);
+              }}
               data-error={!!errors.phone_number}
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
                          focus:outline-none py-0.5"
