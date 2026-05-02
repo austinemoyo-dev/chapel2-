@@ -431,14 +431,14 @@ function FaceCaptureInner() {
     );
   }
 
-  // Derived oval state for color-coding
+  // Derived state for reticle color-coding
   const ovalColor = (() => {
-    if (phase === 'result' && lastRejectionReason) return 'border-danger shadow-[0_0_30px_rgba(220,38,38,0.5)]';
-    if (phase === 'result')      return 'border-success shadow-[0_0_30px_rgba(5,150,105,0.5)] oval-success';
-    if (phase === 'countdown')   return 'border-success shadow-[0_0_30px_rgba(5,150,105,0.5)]';
-    if (phase === 'hold-still')  return 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.4)] oval-hold';
-    if (frameData && frameData.skinRatio > 0.5) return 'border-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.3)] oval-idle';
-    return 'border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.1)] oval-idle';
+    if (phase === 'result' && lastRejectionReason) return 'text-danger drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]';
+    if (phase === 'result')      return 'text-success drop-shadow-[0_0_15px_rgba(16,185,129,0.8)]';
+    if (phase === 'countdown')   return 'text-success drop-shadow-[0_0_15px_rgba(16,185,129,0.8)] scale-[1.02]';
+    if (phase === 'hold-still')  return 'text-primary drop-shadow-[0_0_15px_rgba(124,58,237,0.8)] scale-[1.01]';
+    if (frameData && frameData.skinRatio > 0.5) return 'text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]';
+    return 'text-white/40 drop-shadow-[0_0_5px_rgba(255,255,255,0.2)]';
   })();
 
   return (
@@ -501,38 +501,44 @@ function FaceCaptureInner() {
         <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'scaleX(-1)' }} />
         <canvas ref={canvasRef} className="hidden"/>
 
-        {/* Dark mask with oval window */}
+        {/* Dark mask with banking-style capsule window */}
         <div className="absolute inset-0 pointer-events-none">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <svg className="w-full h-full" viewBox="0 0 100 133.33" preserveAspectRatio="none">
             <defs>
               <mask id="faceMask">
-                <rect width="100" height="100" fill="white"/>
-                <ellipse cx="50" cy="43" rx="29" ry="37" fill="black"/>
+                <rect width="100" height="133.33" fill="white"/>
+                <rect x="21" y="6" width="58" height="77.33" rx="29" fill="black"/>
               </mask>
             </defs>
-            <rect width="100" height="100" fill="rgba(0,0,0,0.60)" mask="url(#faceMask)"/>
+            <rect width="100" height="133.33" fill="rgba(0,0,0,0.65)" mask="url(#faceMask)"/>
           </svg>
         </div>
 
-        {/* Colour-coded oval guide */}
+        {/* Banking-style Scanning Reticle & Silhouette */}
         <div className="absolute inset-0 flex items-start justify-center pointer-events-none"
              style={{ paddingTop: '6%' }}>
-          <div className={`w-[58%] aspect-[3/4] rounded-[50%] border-[4px] transition-all duration-500 ease-out ${ovalColor}`}
-               style={{ backdropFilter: phase === 'countdown' ? 'brightness(1.1)' : 'none' }} />
-        </div>
+          <div className="w-[58%] aspect-[3/4] relative">
+            
+            {/* Segmented Outline Reticle */}
+            <svg viewBox="0 0 200 266" className={`absolute inset-0 w-full h-full transition-all duration-500 ease-out ${ovalColor}`}>
+               <rect x="4" y="4" width="192" height="258" rx="96" fill="none" stroke="currentColor" strokeWidth="4" strokeDasharray="30 18" strokeLinecap="round" />
+            </svg>
+            
+            {/* Target Crosshairs (Corner Brackets) */}
+            <div className={`absolute top-0 left-0 w-8 h-8 border-t-[4px] border-l-[4px] rounded-tl-[30px] transition-colors duration-300 ${phase === 'countdown' ? 'border-success' : 'border-white/80'}`} />
+            <div className={`absolute top-0 right-0 w-8 h-8 border-t-[4px] border-r-[4px] rounded-tr-[30px] transition-colors duration-300 ${phase === 'countdown' ? 'border-success' : 'border-white/80'}`} />
+            <div className={`absolute bottom-0 left-0 w-8 h-8 border-b-[4px] border-l-[4px] rounded-bl-[30px] transition-colors duration-300 ${phase === 'countdown' ? 'border-success' : 'border-white/80'}`} />
+            <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-[4px] border-r-[4px] rounded-br-[30px] transition-colors duration-300 ${phase === 'countdown' ? 'border-success' : 'border-white/80'}`} />
 
-        {/* Alignment dots (corners of face guide) */}
-        <div className="absolute inset-0 pointer-events-none flex items-start justify-center" style={{ paddingTop: '6%' }}>
-          {['top-0 left-1/2 -translate-x-1/2 -translate-y-1.5',
-            'bottom-0 left-1/2 -translate-x-1/2 translate-y-1.5',
-            'left-0 top-1/2 -translate-y-1/2 -translate-x-1.5',
-            'right-0 top-1/2 -translate-y-1/2 translate-x-1.5',
-          ].map((pos, i) => (
-            <div key={i} className={`absolute w-[58%] aspect-[3/4] rounded-full pointer-events-none ${pos}`}>
-              <div className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                phase === 'hold-still' || phase === 'countdown' ? 'bg-primary' : 'bg-white/40'}`}/>
-            </div>
-          ))}
+            {/* Guide Silhouette Avatar */}
+            <svg viewBox="0 0 200 266" className={`absolute inset-0 w-full h-full transition-all duration-500 ${phase === 'positioning' ? 'text-white/40 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] animate-pulse' : 'text-white/10'}`}>
+              {/* Head */}
+              <path d="M100 40C125 40 145 62 145 95C145 125 125 150 100 150C75 150 55 125 55 95C55 62 75 40 100 40Z" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="6 8" strokeLinecap="round" />
+              {/* Shoulders */}
+              <path d="M30 260C30 200 60 170 100 170C140 170 170 200 170 260" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="6 8" strokeLinecap="round" />
+            </svg>
+            
+          </div>
         </div>
 
         {/* Scanning sweep line */}
