@@ -63,102 +63,118 @@ function fmtTime(t: string | null) {
 }
 
 /* ─── Event card — flyer blending ─── */
-function EventCard({ ev, delay }: { ev: ChapelEvent; delay: number }) {
+function EventCard({ ev, delay, onOpenFlyer }: { ev: ChapelEvent; delay: number; onOpenFlyer: (url: string) => void }) {
   const [from, to] = TAG_GRADIENTS[ev.tag] ?? ['#5000AA', '#9B00FF'];
   const timeStr = fmtTime(ev.event_time);
 
   return (
     <Reveal delay={delay}>
-      <div className="glass-card card-lift overflow-hidden h-full group cursor-pointer select-none">
-        {/* Flyer / gradient header */}
-        <div className="relative h-44 overflow-hidden">
-          {ev.flyer_url ? (
-            /* ── Real flyer: full-bleed image + blending overlays ── */
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={ev.flyer_url}
-                alt={ev.title}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              {/* Purple brand tint — makes any flyer feel "chapel" */}
-              <div className="absolute inset-0 pointer-events-none"
-                   style={{ background: 'rgba(80,0,180,0.18)', mixBlendMode: 'multiply' }}/>
-              {/* Gradient darkens bottom so text is always readable */}
-              <div className="absolute inset-0 pointer-events-none"
-                   style={{ background: 'linear-gradient(to top, rgba(10,0,40,0.96) 0%, rgba(20,0,60,0.72) 40%, rgba(80,0,180,0.18) 70%, transparent 100%)' }}/>
-            </>
-          ) : (
-            /* ── No flyer: existing gradient placeholder ── */
-            <>
-              <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}/>
-              <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07] w-28 h-28"
-                   viewBox="0 0 48 48" fill="white" aria-hidden>
-                <rect x="20" y="4"  width="8"  height="40" rx="2"/>
-                <rect x="4"  y="18" width="40" height="8"  rx="2"/>
-              </svg>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none"/>
-            </>
-          )}
+      {ev.flyer_url ? (
+        <button type="button" onClick={() => ev.flyer_url && onOpenFlyer(ev.flyer_url)} className="block w-full h-full text-left focus:outline-none">
+          <EventCardInner ev={ev} from={from} to={to} timeStr={timeStr} />
+        </button>
+      ) : (
+        <EventCardInner ev={ev} from={from} to={to} timeStr={timeStr} />
+      )}
+    </Reveal>
+  );
+}
 
-          {/* Hover shine — both variants */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/12 to-transparent
-                          opacity-0 group-hover:opacity-100 -translate-x-full group-hover:translate-x-full
-                          transition-all duration-700 pointer-events-none"/>
+function EventCardInner({ ev, from, to, timeStr }: { ev: ChapelEvent; from: string; to: string; timeStr: string | null }) {
+  return (
+    <div className="glass-card card-lift overflow-hidden h-[420px] group cursor-pointer select-none relative flex flex-col justify-end">
+      
+      {/* ── Background: Flyer or Gradient ── */}
+      <div className="absolute inset-0">
+        {ev.flyer_url ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={ev.flyer_url}
+              alt={ev.title}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {/* Purple brand tint */}
+            <div className="absolute inset-0 pointer-events-none mix-blend-multiply"
+                 style={{ background: 'rgba(80,0,180,0.18)' }}/>
+            {/* Bottom gradient so text is readable */}
+            <div className="absolute inset-0 pointer-events-none"
+                 style={{ background: 'linear-gradient(to top, rgba(15,0,30,0.98) 0%, rgba(30,0,60,0.85) 40%, transparent 100%)' }}/>
+          </>
+        ) : (
+          <>
+            <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}/>
+            <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07] w-32 h-32"
+                 viewBox="0 0 48 48" fill="white" aria-hidden>
+              <rect x="20" y="4"  width="8"  height="40" rx="2"/>
+              <rect x="4"  y="18" width="40" height="8"  rx="2"/>
+            </svg>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none"/>
+            <div className="absolute inset-0 pointer-events-none"
+                 style={{ background: 'linear-gradient(to top, rgba(15,0,30,0.9) 0%, transparent 60%)' }}/>
+          </>
+        )}
+      </div>
 
-          {/* Tag + title always visible at bottom */}
-          <div className="absolute bottom-0 inset-x-0 p-4 z-10">
-            <span className="inline-flex px-2.5 py-0.5 rounded-full text-white/90 text-[10px]
-                             font-bold tracking-widest uppercase mb-2"
-                  style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}>
-              {ev.tag}
-            </span>
-            <p className="text-white font-black text-base leading-snug line-clamp-2">{ev.title}</p>
-          </div>
-        </div>
+      {/* Hover shine */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/12 to-transparent
+                      opacity-0 group-hover:opacity-100 -translate-x-full group-hover:translate-x-full
+                      transition-all duration-700 pointer-events-none z-20"/>
 
-        {/* Date / time row */}
-        <div className="px-4 py-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <svg className="w-3.5 h-3.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* ── Foreground Text ── */}
+      <div className="relative z-10 px-5 pb-5 pt-12 space-y-2">
+        <span className="inline-flex px-2.5 py-0.5 rounded-full text-white/90 text-[10px]
+                         font-bold tracking-widest uppercase shadow-sm"
+              style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}>
+          {ev.tag}
+        </span>
+        <h3 className="text-white font-black text-lg leading-snug line-clamp-2" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+          {ev.title}
+        </h3>
+        
+        <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-white/80" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+            <svg className="w-3.5 h-3.5 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
             {fmtDate(ev.event_date)}
           </div>
           {timeStr && (
-            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <svg className="w-3.5 h-3.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex items-center gap-2 text-sm font-bold text-white" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+              <svg className="w-3.5 h-3.5 shrink-0 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               {timeStr}
             </div>
           )}
-          {ev.description && (
-            <p className="text-xs text-muted leading-relaxed line-clamp-2 pt-0.5">{ev.description}</p>
-          )}
         </div>
+        
+        {ev.description && (
+          <p className="text-xs text-white/60 leading-relaxed line-clamp-2 pt-1" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+            {ev.description}
+          </p>
+        )}
       </div>
-    </Reveal>
+    </div>
   );
 }
 
 /* ─── Shimmer skeleton for loading state ─── */
 function EventSkeleton() {
   return (
-    <div className="glass-card overflow-hidden h-full">
-      <div className="h-44 shimmer-loading"/>
-      <div className="p-4 space-y-2">
-        <div className="h-3 w-32 rounded-full shimmer-loading"/>
-        <div className="h-4 w-24 rounded-full shimmer-loading"/>
-      </div>
+    <div className="glass-card overflow-hidden h-[420px] flex flex-col justify-end p-5">
+      <div className="h-3 w-20 rounded-full shimmer-loading mb-3"/>
+      <div className="h-5 w-3/4 rounded-full shimmer-loading mb-4"/>
+      <div className="h-3 w-1/2 rounded-full shimmer-loading mb-2"/>
+      <div className="h-3 w-1/3 rounded-full shimmer-loading"/>
     </div>
   );
 }
 
 /* ─── Countdown banner for featured events ─── */
-function CountdownBanner({ event }: { event: ChapelEvent }) {
+function CountdownBanner({ event, onOpenFlyer }: { event: ChapelEvent; onOpenFlyer: (url: string) => void }) {
   const getTarget = () => {
     const [y, m, d] = event.event_date.split('-').map(Number);
     const [h = 0, min = 0] = (event.event_time ?? '').split(':').map(Number);
@@ -196,30 +212,44 @@ function CountdownBanner({ event }: { event: ChapelEvent }) {
   return (
     <section className="py-6 px-5 sm:px-8 max-w-5xl mx-auto">
       <Reveal>
-        <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8"
-             style={{
-               background: 'linear-gradient(135deg, rgba(80,0,160,0.18) 0%, rgba(139,0,255,0.14) 100%)',
-               backdropFilter: 'blur(32px) saturate(200%)',
-               WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-               border: '1.5px solid rgba(139,0,255,0.25)',
-               boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 32px rgba(139,0,255,0.12)',
-             }}>
+        <button type="button" onClick={() => event.flyer_url && onOpenFlyer(event.flyer_url)} className="block w-full text-left group focus:outline-none">
+          <div className="relative rounded-3xl overflow-hidden p-6 sm:p-10 flex flex-col justify-center min-h-[320px] shadow-[0_16px_40px_rgba(0,0,0,0.4)] transition-transform duration-300 group-hover:scale-[1.01]"
+               style={{ background: 'rgba(20,0,40,0.8)' }}>
+          
+          {/* Big Full-Bleed Flyer Background */}
+          {event.flyer_url && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={event.flyer_url}
+                alt={event.title}
+                className="absolute inset-0 w-full h-full object-cover opacity-90"
+              />
+              {/* Multiply overlay for purple hue */}
+              <div className="absolute inset-0 pointer-events-none mix-blend-multiply"
+                   style={{ background: 'rgba(80,0,180,0.4)' }} />
+              {/* Subtle radial gradient to slightly darken the center/left for text readability without losing the image */}
+              <div className="absolute inset-0 pointer-events-none"
+                   style={{ background: 'radial-gradient(circle at 30% 50%, rgba(10,0,30,0.6) 0%, rgba(10,0,30,0.1) 80%, transparent 100%)' }} />
+            </>
+          )}
+
           {/* Ambient orb */}
           <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl pointer-events-none"
                style={{ background: 'rgba(180,0,255,0.20)' }} aria-hidden/>
 
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black
-                              uppercase tracking-widest mb-2"
-                   style={{ background: 'rgba(139,0,255,0.15)', border: '1px solid rgba(139,0,255,0.25)', color: '#C084FC' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 relative z-10">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black
+                              uppercase tracking-widest mb-3 backdrop-blur-md"
+                   style={{ background: 'rgba(139,0,255,0.3)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
                 {isLive ? '🎉 Happening Now' : '🔥 Upcoming Event'}
               </div>
-              <h3 className="text-lg sm:text-xl font-black text-foreground tracking-tight leading-tight">
+              <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
                 {event.title}
               </h3>
-              <p className="text-xs text-muted mt-1">
+              <p className="text-sm font-semibold text-white/90 mt-1.5" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>
                 {fmtDate(event.event_date)}{timeStr ? ` · ${timeStr}` : ''}
               </p>
             </div>
@@ -235,29 +265,38 @@ function CountdownBanner({ event }: { event: ChapelEvent }) {
 
           {/* Countdown digits */}
           {!isLive && time && (
-            <div className="grid grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-4 gap-3 sm:gap-4 relative z-10 w-full sm:max-w-md mt-2">
               {([
                 { label: 'DAYS',    value: time.days },
                 { label: 'HOURS',   value: time.hours },
                 { label: 'MIN',     value: time.minutes },
                 { label: 'SEC',     value: time.seconds },
               ] as const).map(({ label, value }) => (
-                <div key={label} className="flex flex-col items-center gap-1">
-                  <div className="w-full rounded-2xl py-3 sm:py-4 flex items-center justify-center
-                                  text-2xl sm:text-4xl font-black text-white tabular-nums"
+                <div key={label} className="flex flex-col items-center gap-1.5">
+                  <div className="w-full rounded-2xl py-4 sm:py-5 flex items-center justify-center
+                                  text-3xl sm:text-4xl font-black text-white tabular-nums relative overflow-hidden"
                        style={{
-                         background: 'rgba(255,255,255,0.10)',
-                         border: '1px solid rgba(255,255,255,0.18)',
-                         boxShadow: '0 1px 0 rgba(255,255,255,0.20) inset',
+                         background: 'rgba(255,255,255,0.08)',
+                         backdropFilter: 'blur(24px) saturate(200%)',
+                         WebkitBackdropFilter: 'blur(24px) saturate(200%)',
+                         border: '1px solid rgba(255,255,255,0.25)',
+                         boxShadow: '0 1px 0 rgba(255,255,255,0.3) inset, 0 12px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) inset',
                        }}>
-                    {String(value).padStart(2, '0')}
+                    {/* Specular highlight for liquid glass */}
+                    <div className="absolute inset-0 pointer-events-none z-0" style={{
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.02) 40%, transparent 100%)'
+                    }} />
+                    <span className="relative z-10" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+                      {String(value).padStart(2, '0')}
+                    </span>
                   </div>
-                  <span className="text-[9px] font-black tracking-widest text-muted">{label}</span>
+                  <span className="text-[10px] font-black tracking-widest text-white/90 drop-shadow-md">{label}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
+        </button>
       </Reveal>
     </section>
   );
@@ -386,6 +425,9 @@ export default function LandingPage() {
   // Sermons — live from API
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [sermonsLoading, setSermonsLoading] = useState(true);
+
+  // Flyer Lightbox Modal
+  const [selectedFlyer, setSelectedFlyer] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -576,7 +618,7 @@ export default function LandingPage() {
       {/* ════════════════════════════════════════════
           COUNTDOWN BANNER — featured event only
           ════════════════════════════════════════════ */}
-      {featuredEvent && <CountdownBanner event={featuredEvent} />}
+      {featuredEvent && <CountdownBanner event={featuredEvent} onOpenFlyer={setSelectedFlyer} />}
 
       {/* ════════════════════════════════════════════
           QUICK STATS STRIP
@@ -655,7 +697,7 @@ export default function LandingPage() {
           {eventsLoading
             ? [0, 1, 2].map((k) => <EventSkeleton key={k} />)
             : events.length > 0
-              ? events.map((ev, i) => <EventCard key={ev.id} ev={ev} delay={i * 100} />)
+              ? events.map((ev, i) => <EventCard key={ev.id} ev={ev} delay={i * 100} onOpenFlyer={setSelectedFlyer} />)
               : (
                   <div className="col-span-full text-center py-12 text-muted text-sm">
                     No upcoming events at this time. Check back soon.
@@ -773,6 +815,38 @@ export default function LandingPage() {
           </Link>
         </div>
       </footer>
+
+      {/* ════════════════════════════════════════════
+          FLYER LIGHTBOX MODAL
+          ════════════════════════════════════════════ */}
+      {selectedFlyer && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm cursor-pointer" 
+            onClick={() => setSelectedFlyer(null)}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative z-10 max-w-5xl w-full max-h-[90vh] flex flex-col items-center animate-in zoom-in-95 duration-300">
+            <button 
+              type="button"
+              onClick={() => setSelectedFlyer(null)}
+              className="absolute -top-12 right-0 sm:-right-12 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-md border border-white/20"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src={selectedFlyer} 
+              alt="Event Flyer" 
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
