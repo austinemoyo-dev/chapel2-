@@ -140,10 +140,26 @@ function StatusContent() {
           </div>
 
           {/* Title */}
-          <div>
-            <h2 className="text-2xl font-bold gradient-text">Registration Complete!</h2>
-            <p className="text-muted text-sm mt-1">{status.message}</p>
+          <div className="animate-pulse">
+            <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-[#10b981] via-[#3b82f6] to-[#8B00FF] bg-clip-text text-transparent drop-shadow-lg pb-1">
+              Registration Complete!
+            </h2>
+            <p className="text-muted text-base mt-2 font-medium">{status.message}</p>
           </div>
+
+          {/* GIANT SERVICE BANNER */}
+          {regData?.serviceGroup && (
+            <div className="bg-gradient-to-br from-[#8B00FF] to-[#ec4899] rounded-[2rem] p-8 text-white shadow-[0_12px_40px_rgba(139,0,255,0.4)] relative overflow-hidden mx-auto max-w-sm my-6 border border-white/20">
+              <div className="absolute -top-4 -right-4 text-9xl opacity-20 select-none">⛪</div>
+              <p className="text-xs font-black uppercase tracking-[0.25em] text-white/80 mb-2">Your Assigned Service</p>
+              <h1 className="text-5xl sm:text-6xl font-black drop-shadow-xl tracking-tight">
+                SERVICE {regData.serviceGroup.replace('S', '')}
+              </h1>
+              <p className="mt-4 text-sm font-semibold bg-white/20 inline-block px-4 py-2 rounded-full backdrop-blur-sm">
+                Please attend this service
+              </p>
+            </div>
+          )}
 
           {/* Student info card */}
           <div className="bg-surface-2 border border-border rounded-2xl p-5 text-left space-y-3.5 mx-auto max-w-sm">
@@ -171,17 +187,7 @@ function StatusContent() {
               </div>
             )}
 
-            {regData?.serviceGroup && (
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-success-muted flex items-center justify-center">
-                  <span className="text-lg">⛪</span>
-                </div>
-                <div>
-                  <p className="text-xs text-muted">Assigned Service</p>
-                  <p className="text-sm font-semibold">Service {regData.serviceGroup.replace('S', '')}</p>
-                </div>
-              </div>
-            )}
+
 
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary-muted flex items-center justify-center">

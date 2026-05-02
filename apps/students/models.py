@@ -87,6 +87,12 @@ class Student(models.Model):
         max_length=100,
         help_text='Student department'
     )
+    faculty = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text='Student faculty'
+    )
     level = models.CharField(
         max_length=5,
         choices=LevelChoices.choices,

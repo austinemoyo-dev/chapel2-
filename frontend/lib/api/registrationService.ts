@@ -23,6 +23,7 @@ export interface StudentRegistrationRequest {
   full_name: string;
   phone_number: string;
   matric_number?: string;
+  faculty: string;
   department: string;
   level: StudentLevel;
   gender: Gender;
@@ -37,6 +38,7 @@ export interface Student {
   system_id: string;
   full_name: string;
   phone_number: string;
+  faculty: string | null;
   department: string;
   level: StudentLevel;
   gender: Gender;

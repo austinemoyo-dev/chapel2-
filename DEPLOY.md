@@ -133,11 +133,11 @@ Fill in every `<CHANGE_THIS>` value:
 | Variable | How to generate / what to put |
 |---|---|
 | `DJANGO_SECRET_KEY` | Run: `python3 -c "import secrets; print(secrets.token_urlsafe(50))"` |
-| `DJANGO_ALLOWED_HOSTS` | `your-domain.com,www.your-domain.com` |
-| `CORS_ALLOWED_ORIGINS` | `https://your-domain.com,https://www.your-domain.com` |
+| `DJANGO_ALLOWED_HOSTS` | `vuchapel.com.ng,www.vuchapel.com.ng` |
+| `CORS_ALLOWED_ORIGINS` | `https://vuchapel.com.ng,https://www.vuchapel.com.ng` |
 | `DB_PASSWORD` | Run: `openssl rand -base64 32` |
-| `NEXT_PUBLIC_APP_DOMAIN` | `your-domain.com` |
-| `NEXT_PUBLIC_API_URL` | `https://your-domain.com` |
+| `NEXT_PUBLIC_APP_DOMAIN` | `vuchapel.com.ng` |
+| `NEXT_PUBLIC_API_URL` | `https://vuchapel.com.ng` |
 
 Save with `Ctrl+O`, exit with `Ctrl+X`.
 
@@ -152,10 +152,10 @@ chmod 600 .env
 
 ```bash
 # Copy the project's nginx config to the nginx sites directory
-sudo cp nginx/nginx.conf /etc/nginx/sites-available/chapel
+sudo cp nginx/nginx.conf /etc/nginx/sites-available/chapel1
 
 # Edit it — replace placeholders with your actual values
-sudo nano /etc/nginx/sites-available/chapel
+sudo nano /etc/nginx/sites-available/chapel1
 ```
 
 Make these replacements inside the file:
@@ -167,7 +167,7 @@ Make these replacements inside the file:
 
 ```bash
 # Enable the site
-sudo ln -s /etc/nginx/sites-available/chapel /etc/nginx/sites-enabled/chapel
+sudo ln -s /etc/nginx/sites-available/chapel1 /etc/nginx/sites-enabled/chapel1
 
 # Remove the default nginx site
 sudo rm -f /etc/nginx/sites-enabled/default
@@ -211,9 +211,9 @@ docker compose exec backend python manage.py migrate
 # Create the Superadmin account
 # Replace the values below with your real admin details
 docker compose exec backend python manage.py create_superadmin \
-  --email admin@youruniversity.edu \
-  --name "Chapel Administrator" \
-  --password "YourStrongPassword123!" \
+  --email austineakinmoyo@gmail.com \
+  --name "austinemoyo" \
+  --password "akinmoyo" \
   --noinput
 
 # Collect static files (in case collectstatic didn't run during build)
@@ -232,15 +232,15 @@ curl -I https://YOUR_DOMAIN
 # Expect: HTTP/2 200, Strict-Transport-Security header
 
 # 2. Face samples are blocked (biometric data protection)
-curl -I https://YOUR_DOMAIN/media/face_samples/
+curl -I https://vuchapel.com.ng/media/face_samples/
 # Expect: 403 Forbidden
 
 # 3. API is responding
-curl https://YOUR_DOMAIN/api/registration/status/
+curl https://vuchapel.com.ng/api/registration/status/
 # Expect: {"registration_open": false, ...}
 
 # 4. HTTP redirects to HTTPS
-curl -I http://YOUR_DOMAIN
+curl -I http://vuchapel.com.ng
 # Expect: 301 redirect to https://
 
 # 5. Check all containers are running
@@ -289,6 +289,8 @@ docker compose exec backend python manage.py migrate --noinput
 ```bash
 docker compose restart backend
 docker compose restart frontend
+sudo nginx -s reload  #reloads nginx
+
 ```
 
 ### View live logs

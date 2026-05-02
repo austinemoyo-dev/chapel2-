@@ -9,19 +9,46 @@ import { toTitleCase } from '@/lib/utils/formatters';
 import { LEVELS, GENDERS } from '@/lib/utils/constants';
 import Spinner from '@/components/ui/Spinner';
 
+const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
+  "FACULTY OF BASIC AND APPLIED SCIENCES": [
+    "Biotechnology",
+    "Microbiology",
+    "Industrial Chemistry",
+    "Computer Science",
+    "Cyber Security",
+    "Mathematics",
+    "Physics with Electronics"
+  ],
+  "FACULTY OF HUMANITIES, MANAGEMENT AND SOCIAL SCIENCES": [
+    "Accounting",
+    "Entrepreneurship",
+    "Business Administration",
+    "Economics",
+    "History and International Relations",
+    "English",
+    "Mass Communication",
+    "Criminology and Security Studies"
+  ],
+  "FACULTY OF BASIC AND MEDICAL SCIENCES": [
+    "Nursing",
+    "Medical Laboratory Science",
+    "Public Health"
+  ]
+};
+
 /* ── Inline glass-section wrapper ─────────────────────────────────────────── */
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/70 px-1">{label}</p>
       <div className="rounded-[1.4rem] overflow-hidden space-y-px"
-           style={{
-             background: 'rgba(255,255,255,0.50)',
-             backdropFilter: 'blur(24px) saturate(180%)',
-             WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-             border: '1.5px solid rgba(255,255,255,0.58)',
-             boxShadow: '0 1px 0 rgba(255,255,255,0.72) inset, 0 4px 16px rgba(0,0,0,0.05)',
-           }}>
+        style={{
+          background: 'rgba(255,255,255,0.50)',
+          backdropFilter: 'blur(24px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+          border: '1.5px solid rgba(255,255,255,0.58)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.72) inset, 0 4px 16px rgba(0,0,0,0.05)',
+        }}>
         {children}
       </div>
     </div>
@@ -46,27 +73,28 @@ function FieldRow({
 }
 
 function RegistrationFormContent() {
-  const router      = useRouter();
-  const params      = useSearchParams();
+  const router = useRouter();
+  const params = useSearchParams();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const studentType = params.get('type') || 'old';
-  const semesterId  = params.get('semester') || '';
+  const semesterId = params.get('semester') || '';
 
   const [form, setForm] = useState({
-    full_name:    '',
+    full_name: '',
     phone_number: '',
-    matric_number:'',
-    department:   '',
-    level:        '',
-    gender:       '',
+    matric_number: '',
+    faculty: '',
+    department: '',
+    level: '',
+    gender: '',
   });
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [loading, setLoading]           = useState(false);
-  const [errors, setErrors]             = useState<Record<string, string>>({});
-  const [submitted, setSubmitted]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
 
   /* Warn before leaving after form submit */
   useEffect(() => {
@@ -81,8 +109,16 @@ function RegistrationFormContent() {
   }, [submitted]);
 
   const handleChange = (field: string, value: string) => {
-    setForm(p => ({ ...p, [field]: value }));
-    setErrors(p => ({ ...p, [field]: '' }));
+    setForm(p => ({ 
+      ...p, 
+      [field]: value,
+      ...(field === 'faculty' ? { department: '' } : {})
+    }));
+    setErrors(p => ({ 
+      ...p, 
+      [field]: '',
+      ...(field === 'faculty' ? { department: '' } : {})
+    }));
   };
 
   const handlePhotoChange = (file: File | null) => {
@@ -104,10 +140,12 @@ function RegistrationFormContent() {
       e.phone_number = 'Phone number is required';
     if (studentType === 'old' && !form.matric_number.trim())
       e.matric_number = 'Matric number is required';
+    if (!form.faculty)
+      e.faculty = 'Select your faculty';
     if (!form.department.trim())
-      e.department = 'Department is required';
-    if (!form.level)   e.level  = 'Select your level';
-    if (!form.gender)  e.gender = 'Select your gender';
+      e.department = 'Select your department';
+    if (!form.level) e.level = 'Select your level';
+    if (!form.gender) e.gender = 'Select your gender';
     if (!profilePhoto) e.profile_photo = 'A profile photo is required';
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -126,22 +164,23 @@ function RegistrationFormContent() {
 
     try {
       const result = await registrationService.registerStudent({
-        student_type:   studentType as 'old' | 'new',
-        full_name:      toTitleCase(form.full_name),
-        phone_number:   form.phone_number.trim(),
-        matric_number:  studentType === 'old' ? form.matric_number.trim().toUpperCase() : undefined,
-        department:     form.department.trim(),
-        level:          form.level as (typeof LEVELS)[number],
-        gender:         form.gender as 'male' | 'female',
-        profile_photo:  profilePhoto!,
-        semester:       semesterId,
+        student_type: studentType as 'old' | 'new',
+        full_name: toTitleCase(form.full_name),
+        phone_number: form.phone_number.trim(),
+        matric_number: studentType === 'old' ? form.matric_number.trim().toUpperCase() : undefined,
+        faculty: form.faculty,
+        department: form.department.trim(),
+        level: form.level as (typeof LEVELS)[number],
+        gender: form.gender as 'male' | 'female',
+        profile_photo: profilePhoto!,
+        semester: semesterId,
       });
 
       sessionStorage.setItem('chapel_registration', JSON.stringify({
-        studentId:     result.id,
-        studentName:   result.full_name,
-        systemId:      result.system_id,
-        serviceGroup:  result.service_group,
+        studentId: result.id,
+        studentName: result.full_name,
+        systemId: result.system_id,
+        serviceGroup: result.service_group,
         semesterId,
         duplicateFlag: result.duplicate_flag,
       }));
@@ -179,11 +218,11 @@ function RegistrationFormContent() {
       <div className="mb-6">
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3
                         text-xs font-bold"
-             style={{
-               background: isOld ? 'rgba(124,58,237,0.12)' : 'rgba(168,85,247,0.12)',
-               border: isOld ? '1px solid rgba(124,58,237,0.18)' : '1px solid rgba(168,85,247,0.18)',
-               color: isOld ? '#7C3AED' : '#A855F7',
-             }}>
+          style={{
+            background: isOld ? 'rgba(124,58,237,0.12)' : 'rgba(168,85,247,0.12)',
+            border: isOld ? '1px solid rgba(124,58,237,0.18)' : '1px solid rgba(168,85,247,0.18)',
+            color: isOld ? '#7C3AED' : '#A855F7',
+          }}>
           {isOld ? '🎓 Returning Student' : '✨ New Student'}
         </div>
         <h2 className="text-xl font-black text-foreground tracking-tight leading-tight">
@@ -208,8 +247,8 @@ function RegistrationFormContent() {
               border: errors.profile_photo
                 ? '2.5px solid rgba(220,38,38,0.6)'
                 : photoPreview
-                ? '2.5px solid rgba(124,58,237,0.5)'
-                : '2px dashed rgba(124,58,237,0.30)',
+                  ? '2.5px solid rgba(124,58,237,0.5)'
+                  : '2px dashed rgba(124,58,237,0.30)',
               boxShadow: photoPreview ? '0 8px 32px rgba(124,58,237,0.20)' : 'none',
             }}
           >
@@ -224,9 +263,9 @@ function RegistrationFormContent() {
               <div className="flex flex-col items-center gap-1">
                 <svg className="w-7 h-7 text-primary/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+                    d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"/>
+                    d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
                 </svg>
                 <span className="text-[9px] font-bold text-primary/60 uppercase tracking-wide">Tap to add</span>
               </div>
@@ -238,7 +277,7 @@ function RegistrationFormContent() {
                               flex items-center justify-center transition-opacity">
                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
               </div>
             )}
@@ -275,7 +314,7 @@ function RegistrationFormContent() {
           <FieldRow label="Full Name" error={errors.full_name}>
             <input
               type="text"
-              placeholder="John Emmanuel Doe"
+              placeholder="Dash & Co."
               value={form.full_name}
               onChange={(e) => handleChange('full_name', e.target.value)}
               onBlur={(e) => handleChange('full_name', toTitleCase(e.target.value))}
@@ -303,7 +342,7 @@ function RegistrationFormContent() {
             <FieldRow label="Matric Number" error={errors.matric_number} last>
               <input
                 type="text"
-                placeholder="CSC/2023/001"
+                placeholder="23CM2000"
                 value={form.matric_number}
                 onChange={(e) => handleChange('matric_number', e.target.value.toUpperCase())}
                 data-error={!!errors.matric_number}
@@ -325,17 +364,35 @@ function RegistrationFormContent() {
 
         {/* ── Academic Information ── */}
         <Section label="Academic Information">
+          <FieldRow label="Faculty" error={errors.faculty}>
+            <select
+              value={form.faculty}
+              onChange={(e) => handleChange('faculty', e.target.value)}
+              data-error={!!errors.faculty}
+              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5 appearance-none"
+              style={{ fontSize: '16px' }}
+            >
+              <option value="">Select faculty</option>
+              {Object.keys(FACULTIES_AND_DEPARTMENTS).map((fac) => (
+                <option key={fac} value={fac}>{toTitleCase(fac)}</option>
+              ))}
+            </select>
+          </FieldRow>
+
           <FieldRow label="Department" error={errors.department}>
-            <input
-              type="text"
-              placeholder="e.g. Computer Science"
+            <select
               value={form.department}
               onChange={(e) => handleChange('department', e.target.value)}
+              disabled={!form.faculty}
               data-error={!!errors.department}
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
-                         focus:outline-none py-0.5"
+              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5 appearance-none disabled:opacity-50"
               style={{ fontSize: '16px' }}
-            />
+            >
+              <option value="">Select department</option>
+              {form.faculty && FACULTIES_AND_DEPARTMENTS[form.faculty]?.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
           </FieldRow>
 
           <FieldRow label="Level" error={errors.level}>
@@ -385,8 +442,8 @@ function RegistrationFormContent() {
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               Saving…
             </span>
@@ -394,7 +451,7 @@ function RegistrationFormContent() {
             <span className="flex items-center justify-center gap-2">
               Continue to Face Capture
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             </span>
           )}

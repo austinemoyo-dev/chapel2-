@@ -276,7 +276,7 @@ LOGGING = {
         },
         'file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/var/log/chapel/django.log',
+            'filename': '/var/log/chapel/django.log' if _log_dir.exists() else 'django-local.log',
             'maxBytes': 10 * 1024 * 1024,  # 10 MB per file
             'backupCount': 5,
             'formatter': 'verbose',

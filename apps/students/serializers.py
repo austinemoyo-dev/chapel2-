@@ -25,7 +25,7 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
         model = Student
         fields = [
             'id', 'student_type', 'matric_number', 'system_id',
-            'full_name', 'phone_number', 'department', 'level',
+            'full_name', 'phone_number', 'faculty', 'department', 'level',
             'gender', 'profile_photo', 'service_group', 'semester',
             'is_active', 'duplicate_flag', 'face_registered',
             'created_at', 'duplicate_results',
@@ -113,7 +113,7 @@ class StudentListSerializer(serializers.ModelSerializer):
         model = Student
         fields = [
             'id', 'student_type', 'matric_number', 'system_id',
-            'full_name', 'phone_number', 'department', 'level',
+            'full_name', 'phone_number', 'faculty', 'department', 'level',
             'gender', 'service_group', 'is_active', 'duplicate_flag',
             'face_registered', 'semester', 'semester_name', 'created_at',
         ]
@@ -129,7 +129,7 @@ class StudentDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'student_type', 'matric_number', 'system_id',
             'full_name', 'full_name_normalized', 'phone_number',
-            'department', 'level', 'gender', 'profile_photo',
+            'faculty', 'department', 'level', 'gender', 'profile_photo',
             'face_registered', 'service_group', 'semester', 'semester_name',
             'is_active', 'duplicate_flag', 'duplicate_details',
             'created_by', 'created_at', 'approved_face_samples',
