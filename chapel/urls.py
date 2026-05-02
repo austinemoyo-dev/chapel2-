@@ -95,5 +95,12 @@ urlpatterns = [
     path('api/admin/sermons/', include((sermon_admin_urls, 'sermons-admin'))),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+from django.urls import re_path
+from django.views.static import serve
+
+# In this VPS deployment, Nginx (on the host) proxies /media/ and /static/ to Django.
+# Therefore, Django must serve these files even when DEBUG=False.
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
+]
