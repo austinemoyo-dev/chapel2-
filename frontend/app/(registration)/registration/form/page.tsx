@@ -8,6 +8,7 @@ import { ApiError } from '@/lib/api/client';
 import { toTitleCase } from '@/lib/utils/formatters';
 import { LEVELS, GENDERS } from '@/lib/utils/constants';
 import Spinner from '@/components/ui/Spinner';
+import CustomSelect from '@/components/ui/CustomSelect';
 
 const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
   "FACULTY OF BASIC AND APPLIED SCIENCES": [
@@ -37,12 +38,13 @@ const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
 };
 
 /* ── Inline glass-section wrapper ─────────────────────────────────────────── */
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children, zIndex = 10 }: { label: string; children: React.ReactNode; zIndex?: number }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 relative" style={{ zIndex }}>
       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/70 px-1">{label}</p>
-      <div className="rounded-[1.4rem] overflow-hidden space-y-px"
+      <div className="rounded-[1.4rem] space-y-px relative"
         style={{
+          zIndex,
           background: 'rgba(255,255,255,0.50)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
@@ -310,7 +312,7 @@ function RegistrationFormContent() {
         </div>
 
         {/* ── Personal Information ── */}
-        <Section label="Personal Information">
+        <Section label="Personal Information" zIndex={30}>
           <FieldRow label="Full Name" error={errors.full_name}>
             <input
               type="text"
@@ -363,49 +365,39 @@ function RegistrationFormContent() {
         </Section>
 
         {/* ── Academic Information ── */}
-        <Section label="Academic Information">
+        <Section label="Academic Information" zIndex={20}>
           <FieldRow label="Faculty" error={errors.faculty}>
-            <select
-              value={form.faculty}
-              onChange={(e) => handleChange('faculty', e.target.value)}
+            <CustomSelect
+              id="faculty"
               data-error={!!errors.faculty}
-              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5 appearance-none"
-              style={{ fontSize: '16px' }}
-            >
-              <option value="">Select faculty</option>
-              {Object.keys(FACULTIES_AND_DEPARTMENTS).map((fac) => (
-                <option key={fac} value={fac}>{toTitleCase(fac)}</option>
-              ))}
-            </select>
+              value={form.faculty}
+              onChange={(val) => handleChange('faculty', val)}
+              options={Object.keys(FACULTIES_AND_DEPARTMENTS).map((fac) => ({ value: fac, label: toTitleCase(fac) }))}
+              placeholder="Select faculty"
+            />
           </FieldRow>
 
           <FieldRow label="Department" error={errors.department}>
-            <select
-              value={form.department}
-              onChange={(e) => handleChange('department', e.target.value)}
-              disabled={!form.faculty}
+            <CustomSelect
+              id="department"
               data-error={!!errors.department}
-              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5 appearance-none disabled:opacity-50"
-              style={{ fontSize: '16px' }}
-            >
-              <option value="">Select department</option>
-              {form.faculty && FACULTIES_AND_DEPARTMENTS[form.faculty]?.map((dept) => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
+              value={form.department}
+              onChange={(val) => handleChange('department', val)}
+              options={(form.faculty ? FACULTIES_AND_DEPARTMENTS[form.faculty] : []).map((dept) => ({ value: dept, label: dept }))}
+              placeholder={form.faculty ? "Select department" : "Select faculty first"}
+              className={!form.faculty ? "opacity-50 pointer-events-none" : ""}
+            />
           </FieldRow>
 
           <FieldRow label="Level" error={errors.level}>
-            <select
+            <CustomSelect
+              id="level"
+              data-error={!!errors.level}
               value={form.level}
-              onChange={(e) => handleChange('level', e.target.value)}
-              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5
-                         appearance-none"
-              style={{ fontSize: '16px' }}
-            >
-              <option value="">Select level</option>
-              {LEVELS.map((l) => <option key={l} value={l}>{l} Level</option>)}
-            </select>
+              onChange={(val) => handleChange('level', val)}
+              options={LEVELS.map((l) => ({ value: l, label: `${l} Level` }))}
+              placeholder="Select level"
+            />
           </FieldRow>
 
           <FieldRow label="Gender" error={errors.gender} last>
