@@ -20,6 +20,33 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 
+const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
+  "FACULTY OF BASIC AND APPLIED SCIENCES": [
+    "Biotechnology",
+    "Microbiology",
+    "Industrial Chemistry",
+    "Computer Science",
+    "Cyber Security",
+    "Mathematics",
+    "Physics with Electronics"
+  ],
+  "FACULTY OF HUMANITIES, MANAGEMENT AND SOCIAL SCIENCES": [
+    "Accounting",
+    "Entrepreneurship",
+    "Business Administration",
+    "Economics",
+    "History and International Relations",
+    "English",
+    "Mass Communication",
+    "Criminology and Security Studies"
+  ],
+  "FACULTY OF BASIC AND MEDICAL SCIENCES": [
+    "Nursing",
+    "Medical Laboratory Science",
+    "Public Health"
+  ]
+};
+
 export default function StudentsPage() {
   const { hasRole, hasPermission } = useAuth();
   const { addToast } = useToast();
@@ -34,6 +61,7 @@ export default function StudentsPage() {
     full_name: '',
     phone_number: '',
     matric_number: '',
+    faculty: '',
     department: '',
     level: '',
     gender: '',
@@ -59,7 +87,7 @@ export default function StudentsPage() {
   }, [search]);
 
   async function handleAddStudent() {
-    if (!form.full_name || !form.phone_number || !form.department || !form.level || !form.gender) {
+    if (!form.full_name || !form.phone_number || !form.faculty || !form.department || !form.level || !form.gender) {
       addToast('Fill all required student fields', 'warning');
       return;
     }
@@ -75,6 +103,7 @@ export default function StudentsPage() {
         full_name: toTitleCase(form.full_name),
         phone_number: form.phone_number.trim(),
         matric_number: form.student_type === STUDENT_TYPES.OLD ? form.matric_number.trim().toUpperCase() : undefined,
+        faculty: form.faculty,
         department: form.department.trim(),
         level: form.level as typeof LEVELS[number],
         gender: form.gender as typeof GENDERS[number],
@@ -89,6 +118,7 @@ export default function StudentsPage() {
         full_name: '',
         phone_number: '',
         matric_number: '',
+        faculty: '',
         department: '',
         level: '',
         gender: '',
@@ -167,7 +197,21 @@ export default function StudentsPage() {
           {form.student_type === STUDENT_TYPES.OLD && (
             <Input id="add-matric" label="Matric Number" value={form.matric_number} onChange={(e) => setForm((current) => ({ ...current, matric_number: e.target.value }))} />
           )}
-          <Input id="add-department" label="Department" value={form.department} onChange={(e) => setForm((current) => ({ ...current, department: e.target.value }))} />
+          <Select 
+            id="add-faculty" 
+            label="Faculty" 
+            options={Object.keys(FACULTIES_AND_DEPARTMENTS).map(f => ({ value: f, label: f }))} 
+            value={form.faculty} 
+            onChange={(e) => setForm((current) => ({ ...current, faculty: e.target.value, department: '' }))} 
+          />
+          <Select 
+            id="add-department" 
+            label="Department" 
+            options={(form.faculty ? FACULTIES_AND_DEPARTMENTS[form.faculty] : []).map(d => ({ value: d, label: d }))} 
+            value={form.department} 
+            onChange={(e) => setForm((current) => ({ ...current, department: e.target.value }))} 
+            disabled={!form.faculty}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select id="add-level" label="Level" options={LEVELS.map((level) => ({ value: level, label: `${level} Level` }))} value={form.level} onChange={(e) => setForm((current) => ({ ...current, level: e.target.value }))} />
             <Select id="add-gender" label="Gender" options={GENDERS.map((gender) => ({ value: gender, label: gender.charAt(0).toUpperCase() + gender.slice(1) }))} value={form.gender} onChange={(e) => setForm((current) => ({ ...current, gender: e.target.value }))} />
