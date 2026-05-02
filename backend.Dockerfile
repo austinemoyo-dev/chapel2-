@@ -1,44 +1,49 @@
 FROM python:3.11-slim
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV TF_CPP_MIN_LOG_LEVEL=3
+# Silence OpenCV and ONNX Runtime console noise
+ENV OPENCV_LOG_LEVEL=ERROR
+ENV ORT_LOGGING_LEVEL=3
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
-# libgl1-mesa-glx and libglib2.0-0 are required by OpenCV/DeepFace
-RUN apt-get update && apt-get install -y \
+# System dependencies
+# - libpq-dev        : PostgreSQL client (psycopg2)
+# - libgl1 + libglib : OpenCV headless image I/O (InsightFace)
+# - libgomp1         : OpenMP — required by ONNX Runtime CPU kernels
+# - libstdc++6       : C++ standard library needed by ONNX Runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     libgl1 \
     libglib2.0-0 \
+    libgomp1 \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies
+# Install Python dependencies (layer cached until requirements.txt changes)
 COPY requirements.txt /app/
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip --no-cache-dir && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Create necessary directories for media/static, deepface weights, and logs
-RUN mkdir -p /app/staticfiles /app/media /root/.deepface/weights /var/log/chapel
+# Create runtime directories
+RUN mkdir -p /app/staticfiles /app/media /root/.insightface /var/log/chapel
 
-# Download Facenet512 weights to avoid runtime download delay
-RUN python -c "\
-import requests, pathlib; \
-url='https://github.com/serengil/deepface_models/releases/download/v1.0/facenet512_weights.h5'; \
-dest=pathlib.Path('/root/.deepface/weights/facenet512_weights.h5'); \
-r=requests.get(url, stream=True); \
-dest.write_bytes(r.content)"
+# Pre-warm InsightFace buffalo_l models so the first request is not slow.
+# Models are downloaded to /root/.insightface and persisted via the
+# insightface_models Docker volume defined in docker-compose.yml.
+# Total download: ~500 MB. Use buffalo_s (~90 MB) for a lighter image.
+RUN python -c " \
+from insightface.app import FaceAnalysis; \
+app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider']); \
+app.prepare(ctx_id=0, det_size=(640, 640)); \
+print('InsightFace buffalo_l pre-loaded successfully.') \
+" || echo "InsightFace pre-warm skipped (will load on first request)."
 
-# Copy project
+# Copy project source
 COPY . /app/
 
-# Expose port 8000
 EXPOSE 8000
 
-# Start Gunicorn server (collect static and migrate should be run during CI/CD or startup script, 
-# but for simplicity we will run gunicorn directly. We can add a startup script if needed.)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "chapel.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "180", "chapel.wsgi:application"]

@@ -196,17 +196,39 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 CORS_ALLOW_CREDENTIALS = True
 
 # =============================================================================
-# DEEPFACE CONFIGURATION
+# INSIGHTFACE CONFIGURATION (replaces DeepFace / TensorFlow)
 # =============================================================================
-# Suppress TensorFlow / oneDNN verbose startup logs
-os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
-os.environ.setdefault('TF_ENABLE_ONEDNN_OPTS', '0')
 os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
 
-DEEPFACE_MODEL = os.environ.get('DEEPFACE_MODEL', 'Facenet512')
-DEEPFACE_DETECTOR = os.environ.get('DEEPFACE_DETECTOR', 'opencv')
-DEEPFACE_DISTANCE_METRIC = 'cosine'
-DEEPFACE_MATCH_THRESHOLD = float(os.environ.get('DEEPFACE_MATCH_THRESHOLD', '0.30'))
+# Model pack — 'buffalo_l' (best, ~500 MB), 'buffalo_m' (~150 MB), 'buffalo_s' (~90 MB).
+INSIGHTFACE_MODEL_NAME = os.environ.get('INSIGHTFACE_MODEL_NAME', 'buffalo_l')
+
+# Detector input resolution. Higher = more accurate on small/distant faces.
+# (640, 640) is the default and works well for a phone-held portrait frame.
+INSIGHTFACE_DET_SIZE = (
+    int(os.environ.get('INSIGHTFACE_DET_W', '640')),
+    int(os.environ.get('INSIGHTFACE_DET_H', '640')),
+)
+
+# Cosine DISTANCE threshold for face matching (lower = stricter).
+# ArcFace default for buffalo_l is ~0.40.
+# Raise to 0.45 for more lenient matching (fewer false rejects).
+# Lower to 0.35 for stricter matching (fewer false accepts).
+INSIGHTFACE_MATCH_THRESHOLD = float(
+    os.environ.get('INSIGHTFACE_MATCH_THRESHOLD', '0.40')
+)
+
+# Minimum RetinaFace detection confidence to accept a face.
+# Faces below this threshold are considered blurry / poorly lit.
+INSIGHTFACE_DET_SCORE_MIN = float(
+    os.environ.get('INSIGHTFACE_DET_SCORE_MIN', '0.50')
+)
+
+# Minimum face bounding-box size in pixels.
+# Faces smaller than this are rejected as "too far from camera".
+INSIGHTFACE_MIN_FACE_PX = int(
+    os.environ.get('INSIGHTFACE_MIN_FACE_PX', '80')
+)
 
 # =============================================================================
 # DUPLICATE DETECTION CONFIGURATION

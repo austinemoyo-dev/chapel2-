@@ -3,7 +3,6 @@ Students Views — Registration, face sample upload, duplicate management, and m
 """
 import logging
 import os
-import numpy as np
 from django.conf import settings
 from django.core import signing
 from django.db import transaction
@@ -335,144 +334,38 @@ class FaceSampleUploadView(APIView):
     def _check_face_duplicate(self, embedding_vector, current_student, semester):
         """
         Compare a new embedding against every other approved sample in the
-        semester.  Returns match info dict if a duplicate is found, else None.
+        semester using InsightFace/ArcFace cosine similarity.
+        Returns match-info dict if a duplicate is found, else None.
         """
-        try:
-            import numpy as np
-        except ImportError:
-            return None
-
-        threshold = settings.DEEPFACE_MATCH_THRESHOLD
-
-        other_samples = FaceSample.objects.filter(
-            semester=semester,
-            status='approved',
-        ).exclude(student=current_student).select_related('student')
-
-        if not other_samples.exists():
-            return None
-
-        input_emb = np.array(embedding_vector, dtype=np.float64)
-        input_norm = np.linalg.norm(input_emb)
-        if input_norm == 0:
-            return None
-        input_emb = input_emb / input_norm
-
-        for sample in other_samples:
-            if not sample.embedding_vector:
-                continue
-            stored_emb = np.array(sample.embedding_vector, dtype=np.float64)
-            stored_norm = np.linalg.norm(stored_emb)
-            if stored_norm == 0:
-                continue
-            stored_emb = stored_emb / stored_norm
-            similarity = float(np.dot(input_emb, stored_emb))
-            if (1.0 - similarity) < threshold:
-                return {
-                    'student_id': sample.student.id,
-                    'student_name': sample.student.full_name,
-                    'confidence': similarity,
-                }
-        return None
+        from apps.core.face import check_face_duplicate
+        return check_face_duplicate(embedding_vector, current_student, semester)
 
     def _process_face_sample(self, sample_file, student):
         """
-        Process a face sample using DeepFace.
+        Process a face sample using InsightFace (ArcFace + RetinaFace).
 
-        Performs:
-        1. Face detection
-        2. Quality checks (size, brightness, blur, multiple faces, eyes)
-        3. Embedding extraction using Facenet512
-        
+        1. Write upload to a temp file
+        2. Run RetinaFace detection + quality checks
+        3. Extract ArcFace 512-dim embedding
+        4. Clean up temp file
+
         Returns:
             dict: {status, embedding, rejection_reason}
         """
         import tempfile
-        try:
-            from deepface import DeepFace
-        except ImportError:
-            logger.warning('DeepFace not available — using mock processing')
-            return {
-                'status': 'approved',
-                'embedding': [0.0] * 512,  # Mock embedding
-                'rejection_reason': None,
-            }
+        from apps.core.face import process_face_sample
 
-        # Save uploaded file to a temporary location for DeepFace processing
         temp_path = None
         try:
+            suffix = os.path.splitext(sample_file.name)[-1] or '.jpg'
             with tempfile.NamedTemporaryFile(
-                delete=False, suffix='.jpg', dir=settings.MEDIA_ROOT
+                delete=False, suffix=suffix, dir=settings.MEDIA_ROOT
             ) as tmp:
                 for chunk in sample_file.chunks():
                     tmp.write(chunk)
                 temp_path = tmp.name
 
-            # Step 1: Detect faces and check quality
-            try:
-                face_objs = DeepFace.extract_faces(
-                    img_path=temp_path,
-                    detector_backend=settings.DEEPFACE_DETECTOR,
-                    enforce_detection=True,
-                )
-            except ValueError:
-                return {
-                    'status': 'rejected',
-                    'embedding': [],
-                    'rejection_reason': 'No face detected. Position your face in the center of the frame.',
-                }
-
-            # Check for multiple faces
-            if len(face_objs) > 1:
-                return {
-                    'status': 'rejected',
-                    'embedding': [],
-                    'rejection_reason': 'Multiple faces detected. Ensure only your face is visible.',
-                }
-
-            face = face_objs[0]
-
-            # Check face confidence / size
-            if face.get('confidence', 1.0) < 0.5:
-                return {
-                    'status': 'rejected',
-                    'embedding': [],
-                    'rejection_reason': 'Poor lighting or image quality. Move to a brighter area and hold the phone steady.',
-                }
-
-            # Check facial area size (face too small = too far from camera)
-            facial_area = face.get('facial_area', {})
-            face_w = facial_area.get('w', 0)
-            face_h = facial_area.get('h', 0)
-            if face_w < 80 or face_h < 80:
-                return {
-                    'status': 'rejected',
-                    'embedding': [],
-                    'rejection_reason': 'Move closer to the camera.',
-                }
-
-            # Step 2: Extract embedding using Facenet512
-            embeddings = DeepFace.represent(
-                img_path=temp_path,
-                model_name=settings.DEEPFACE_MODEL,
-                detector_backend=settings.DEEPFACE_DETECTOR,
-                enforce_detection=True,
-            )
-
-            if not embeddings:
-                return {
-                    'status': 'rejected',
-                    'embedding': [],
-                    'rejection_reason': 'Failed to process face. Please try again.',
-                }
-
-            embedding_vector = embeddings[0]['embedding']
-
-            return {
-                'status': 'approved',
-                'embedding': embedding_vector,
-                'rejection_reason': None,
-            }
+            return process_face_sample(temp_path)
 
         except Exception as e:
             logger.error(f'Face sample processing error: {e}')
@@ -482,7 +375,6 @@ class FaceSampleUploadView(APIView):
                 'rejection_reason': 'An error occurred during face processing. Please try again.',
             }
         finally:
-            # Clean up temp file
             if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)
 

@@ -10,8 +10,6 @@ Core attendance business logic:
 """
 import math
 import logging
-import numpy as np
-from django.conf import settings
 from django.db.models import Q
 
 logger = logging.getLogger(__name__)
@@ -155,28 +153,21 @@ def validate_device_binding(user, device_id):
 def match_face_1_to_n(face_embedding, service_id):
     """
     Perform 1-to-N face matching against the active service's student pool.
-    
-    Uses cosine similarity between the input embedding and all stored
-    embeddings for students assigned to the service's group.
-    
-    For special services (service_group='all'), matches against ALL
-    registered students in the current semester.
-    
+
+    Uses InsightFace/ArcFace cosine similarity via apps.core.face.match_1_to_n.
+    Pool is scoped to the student's assigned service group (S1/S2/S3),
+    or the entire semester for special (all-student) services.
+
     Args:
-        face_embedding: list/array — the 512-dimensional Facenet512 embedding
-        service_id: UUID — the active service
-    
+        face_embedding: 512-dim list — ArcFace embedding from the live frame.
+        service_id:     UUID — the active service instance.
+
     Returns:
-        dict: {
-            'matched': bool,
-            'student_id': UUID or None,
-            'student_name': str or None,
-            'confidence': float,
-            'message': str
-        }
+        dict with keys: matched, student_id, student_name, confidence, message.
     """
     from apps.services.models import Service
     from apps.students.models import FaceSample
+    from apps.core.face import match_1_to_n
 
     try:
         service = Service.objects.get(id=service_id)
@@ -187,22 +178,15 @@ def match_face_1_to_n(face_embedding, service_id):
             'message': 'Service not found.',
         }
 
-    # Determine the matching pool based on service group
-    if service.service_group == 'all':
-        # Special service — all registered students in the semester
-        samples = FaceSample.objects.filter(
-            semester=service.semester,
-            status='approved',
-            student__is_active=True,
-        ).select_related('student')
-    else:
-        # Regular service — only students assigned to this service group
-        samples = FaceSample.objects.filter(
-            semester=service.semester,
-            status='approved',
-            student__is_active=True,
-            student__service_group=service.service_group,
-        ).select_related('student')
+    base_filter = dict(
+        semester=service.semester,
+        status='approved',
+        student__is_active=True,
+    )
+    if service.service_group != 'all':
+        base_filter['student__service_group'] = service.service_group
+
+    samples = FaceSample.objects.filter(**base_filter).select_related('student')
 
     if not samples.exists():
         return {
@@ -211,66 +195,7 @@ def match_face_1_to_n(face_embedding, service_id):
             'message': 'No face embeddings available for this service pool.',
         }
 
-    # Normalize the probe embedding
-    input_embedding = np.array(face_embedding, dtype=np.float64)
-    input_norm = np.linalg.norm(input_embedding)
-    if input_norm == 0:
-        return {
-            'matched': False, 'student_id': None,
-            'student_name': None, 'confidence': 0.0,
-            'message': 'Invalid face embedding.',
-        }
-    input_embedding = input_embedding / input_norm
-
-    threshold = settings.DEEPFACE_MATCH_THRESHOLD
-
-    # Build a normalized matrix of all stored embeddings in one pass.
-    # Skip samples with zero/empty vectors (mock embeddings from before
-    # DeepFace was installed) so they never produce false matches.
-    valid_samples = []
-    rows = []
-    for sample in samples:
-        if not sample.embedding_vector:
-            continue
-        vec = np.array(sample.embedding_vector, dtype=np.float64)
-        norm = np.linalg.norm(vec)
-        if norm == 0:
-            continue  # skip mock zero-vector embeddings
-        rows.append(vec / norm)
-        valid_samples.append(sample)
-
-    if not valid_samples:
-        return {
-            'matched': False, 'student_id': None,
-            'student_name': None, 'confidence': 0.0,
-            'message': 'No valid face embeddings in this service pool.',
-        }
-
-    # Single BLAS matrix-vector multiply: (N, 512) @ (512,) = (N,)
-    # Orders of magnitude faster than a Python loop for large pools.
-    matrix = np.vstack(rows)
-    similarities = matrix @ input_embedding
-    best_idx = int(np.argmax(similarities))
-    best_similarity = float(similarities[best_idx])
-    best_match = valid_samples[best_idx]
-
-    cosine_distance = 1.0 - best_similarity
-    if cosine_distance < threshold:
-        return {
-            'matched': True,
-            'student_id': best_match.student.id,
-            'student_name': best_match.student.full_name,
-            'confidence': best_similarity,
-            'message': f'Matched: {best_match.student.full_name} (confidence: {best_similarity:.4f})',
-        }
-
-    return {
-        'matched': False,
-        'student_id': None,
-        'student_name': None,
-        'confidence': best_similarity,
-        'message': 'No matching face found in the service pool.',
-    }
+    return match_1_to_n(face_embedding, samples)
 
 
 def calculate_attendance_percentage(student, semester_id):

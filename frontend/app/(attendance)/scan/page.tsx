@@ -41,9 +41,16 @@ export default function ScanPage() {
   const [result, setResult] = useState<{ type: ResultType; name: string; message: string } | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
 
+  // Liveness
+  const [livenessChallenge, setLivenessChallenge] = useState<typeof LIVENESS_CHALLENGES[number] | null>(null);
+  const [livenessProgress, setLivenessProgress]   = useState(0); // 0–100
+  const livenessDeadlineRef  = useRef<number | null>(null);
+  const livenessPassRef      = useRef(false);
+  const livenessChallengeRef = useRef<typeof LIVENESS_CHALLENGES[number] | null>(null); // readable inside interval
+
   const analysisLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdStartRef = useRef<number | null>(null);
-  const phaseRef = useRef(phase);
+  const holdStartRef    = useRef<number | null>(null);
+  const phaseRef        = useRef(phase);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   const [pendingSync, setPendingSync] = useState(0);
@@ -162,47 +169,121 @@ export default function ScanPage() {
 
 
 
+  // ── Check if the liveness challenge blendshape condition is met ────────────
+  const checkLivenessAction = useCallback((
+    challenge: typeof LIVENESS_CHALLENGES[number],
+    blendshapes: Record<string, number>,
+    headYaw: number,
+  ): boolean => {
+    switch (challenge.id) {
+      case 'blink':
+        return Math.max(blendshapes['eyeBlinkLeft'] ?? 0, blendshapes['eyeBlinkRight'] ?? 0) > 0.65;
+      case 'smile':
+        return (blendshapes['mouthSmileLeft'] ?? 0) > 0.45 && (blendshapes['mouthSmileRight'] ?? 0) > 0.45;
+      case 'turn_left':
+        // Student turns left → nose moves right in image (positive yaw)
+        return headYaw > 0.10;
+      case 'turn_right':
+        // Student turns right → nose moves left in image (negative yaw)
+        return headYaw < -0.10;
+      case 'nod':
+        // Approximate nod via jaw opening
+        return (blendshapes['jawOpen'] ?? 0) > 0.25;
+      default:
+        return false;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isActive || phase === 'select_service' || !modelsLoaded || !selectedService) return;
 
+    const LIVENESS_TIMEOUT_MS = 5000;
     let isAnalyzing = false;
+
     analysisLoopRef.current = setInterval(async () => {
       if (isAnalyzing) return;
       isAnalyzing = true;
       try {
-        if (phaseRef.current !== 'ready') return;
+        const currentPhase = phaseRef.current;
+        if (currentPhase !== 'ready' && currentPhase !== 'liveness') return;
 
         const analysis = await analyzeFrame();
         if (!analysis) return;
 
-        const { skinToneRatio, isStable } = analysis;
+        const { skinToneRatio, isStable, blendshapes, headYaw } = analysis;
         const hasFace = skinToneRatio >= 0.5;
-        
         setFaceDetected(hasFace);
 
-        if (hasFace && isStable) {
-          if (!holdStartRef.current) {
-            holdStartRef.current = Date.now();
-          } else {
-            const held = Date.now() - holdStartRef.current;
-            if (held >= 0) { // Instant capture
+        // ── READY: wait for a stable face, then issue liveness challenge ────
+        if (currentPhase === 'ready') {
+          if (hasFace && isStable) {
+            if (!holdStartRef.current) {
+              holdStartRef.current = Date.now();
+            } else if (Date.now() - holdStartRef.current >= 400) {
               holdStartRef.current = null;
-              setPhase('scanning');
-              void handleCapture();
+              // Pick a random challenge and switch to liveness phase
+              const challenge = LIVENESS_CHALLENGES[
+                Math.floor(Math.random() * LIVENESS_CHALLENGES.length)
+              ];
+              livenessPassRef.current     = false;
+              livenessDeadlineRef.current  = Date.now() + LIVENESS_TIMEOUT_MS;
+              livenessChallengeRef.current = challenge;   // readable inside interval
+              setLivenessChallenge(challenge);
+              setLivenessProgress(0);
+              setPhase('liveness');
             }
+          } else {
+            holdStartRef.current = null;
           }
-        } else if (!isStable || !hasFace) {
-          holdStartRef.current = null;
+          return;
+        }
+
+        // ── LIVENESS: verify the challenge via blendshapes ───────────────────
+        if (currentPhase === 'liveness') {
+          const deadline = livenessDeadlineRef.current ?? 0;
+          const remaining = deadline - Date.now();
+
+          // Update progress bar (100 → 0 as time runs out)
+          setLivenessProgress(Math.max(0, Math.round((remaining / LIVENESS_TIMEOUT_MS) * 100)));
+
+          // Timeout — reset to ready
+          if (remaining <= 0) {
+            livenessDeadlineRef.current  = null;
+            livenessChallengeRef.current = null;
+            setLivenessChallenge(null);
+            setLivenessProgress(0);
+            setPhase('ready');
+            holdStartRef.current = null;
+            return;
+          }
+
+          if (!hasFace) return;
+          if (livenessPassRef.current) return; // already passed, waiting for capture
+
+          // Use the ref — state is stale inside setInterval closures
+          const activeChallenge = livenessChallengeRef.current;
+          if (!activeChallenge) return;
+
+          const passed = checkLivenessAction(activeChallenge, blendshapes, headYaw);
+          if (passed) {
+            livenessPassRef.current      = true;
+            livenessDeadlineRef.current  = null;
+            livenessChallengeRef.current = null;
+            setLivenessChallenge(null);
+            setLivenessProgress(0);
+            setPhase('scanning');
+            void handleCapture();
+          }
         }
       } finally {
         isAnalyzing = false;
       }
-    }, 150);
+    }, 120);
 
     return () => {
       if (analysisLoopRef.current) clearInterval(analysisLoopRef.current);
     };
-  }, [isActive, phase, modelsLoaded, selectedService, analyzeFrame]);
+  }, [isActive, phase, modelsLoaded, selectedService, analyzeFrame, checkLivenessAction]);
 
   async function handleCapture() {
     if (!selectedService || scanning) return;
@@ -392,10 +473,11 @@ export default function ScanPage() {
         {/* Colour-coded oval guide */}
         <div className="absolute inset-0 flex items-start justify-center pointer-events-none"
              style={{ paddingTop: '6%' }}>
-          <div className={`w-[58%] aspect-[3/4] rounded-full border-[3px] transition-all duration-400 ${
-            phase === 'scanning' ? 'border-primary animate-pulse shadow-[0_0_24px_rgba(139,0,255,0.5)]' :
-            faceDetected ? 'border-success shadow-[0_0_24px_rgba(5,150,105,0.4)]' : 
-            'border-white/30'
+          <div className={`w-[58%] aspect-[3/4] rounded-full border-[3px] transition-all duration-300 ${
+            phase === 'scanning'  ? 'border-primary animate-pulse shadow-[0_0_24px_rgba(139,0,255,0.5)]' :
+            phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_24px_rgba(250,204,21,0.5)]' :
+            faceDetected          ? 'border-success shadow-[0_0_24px_rgba(5,150,105,0.4)]' :
+                                    'border-white/30'
           }`}/>
         </div>
 
@@ -420,6 +502,44 @@ export default function ScanPage() {
           </div>
           <p className="text-muted mt-2">{embeddingStatus}</p>
         </div>
+
+        {/* Liveness challenge overlay */}
+        {phase === 'liveness' && livenessChallenge && (
+          <div className="absolute inset-0 flex flex-col items-center justify-end pb-10 z-20 pointer-events-none">
+            <div className="mx-4 w-full max-w-sm rounded-3xl overflow-hidden"
+                 style={{
+                   background: 'rgba(10,0,30,0.82)',
+                   backdropFilter: 'blur(20px)',
+                   border: '1.5px solid rgba(139,0,255,0.40)',
+                   boxShadow: '0 8px 32px rgba(0,0,0,0.40)',
+                 }}>
+              {/* Progress bar */}
+              <div className="h-1 bg-white/10 w-full">
+                <div
+                  className="h-full transition-all duration-200 rounded-full"
+                  style={{
+                    width: `${livenessProgress}%`,
+                    background: livenessProgress > 40
+                      ? 'linear-gradient(90deg,#7C3AED,#A855F7)'
+                      : 'linear-gradient(90deg,#DC2626,#EF4444)',
+                  }}
+                />
+              </div>
+
+              <div className="px-5 py-4 text-center">
+                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">
+                  Liveness Check
+                </p>
+                <p className="text-4xl mb-2">{livenessChallenge.label.split(' ')[0] === 'Blink' ? '👁️' :
+                  livenessChallenge.label.includes('Smile') ? '😊' :
+                  livenessChallenge.label.includes('Left')  ? '↩️' :
+                  livenessChallenge.label.includes('Right') ? '↪️' : '↕️'}</p>
+                <p className="text-white font-black text-lg leading-tight">{livenessChallenge.label}</p>
+                <p className="text-white/60 text-xs mt-1">{livenessChallenge.instruction}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {phase === 'scanning' && scanning && (
           <div className="absolute inset-0 flex items-center justify-center z-20">

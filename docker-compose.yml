@@ -37,15 +37,16 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DEEPFACE_MODEL=${DEEPFACE_MODEL:-Facenet512}
-      - DEEPFACE_DETECTOR=${DEEPFACE_DETECTOR:-opencv}
-      - DEEPFACE_MATCH_THRESHOLD=${DEEPFACE_MATCH_THRESHOLD:-0.30}
+      - INSIGHTFACE_MODEL_NAME=${INSIGHTFACE_MODEL_NAME:-buffalo_l}
+      - INSIGHTFACE_MATCH_THRESHOLD=${INSIGHTFACE_MATCH_THRESHOLD:-0.40}
+      - INSIGHTFACE_DET_SCORE_MIN=${INSIGHTFACE_DET_SCORE_MIN:-0.50}
+      - INSIGHTFACE_MIN_FACE_PX=${INSIGHTFACE_MIN_FACE_PX:-80}
       - FUZZY_NAME_MATCH_THRESHOLD=${FUZZY_NAME_MATCH_THRESHOLD:-85}
       - MATRIC_UPDATE_TOKEN_EXPIRY_HOURS=${MATRIC_UPDATE_TOKEN_EXPIRY_HOURS:-48}
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
-      - deepface_weights:/root/.deepface/weights
+      - insightface_models:/root/.insightface   # persists ~500 MB model weights
       - chapel_logs:/var/log/chapel
     depends_on:
       db:
@@ -76,5 +77,5 @@ volumes:
   postgres_data:
   media_data:
   static_data:
-  deepface_weights:
+  insightface_models:   # persists buffalo_l ONNX weights across container rebuilds
   chapel_logs:

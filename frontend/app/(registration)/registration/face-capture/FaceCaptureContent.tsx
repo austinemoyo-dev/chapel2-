@@ -28,25 +28,27 @@ type Instruction = {
 };
 
 const INSTRUCTIONS: Record<string, Instruction> = {
-  no_camera:      { text: 'Starting camera...', icon: '📷', type: 'info' },
-  position:       { text: 'Position your face within the oval', icon: '👤', type: 'info' },
-  too_dark:       { text: 'Move to a brighter area', icon: '💡', type: 'warning' },
-  no_face:        { text: 'No face detected — look at the camera', icon: '👀', type: 'warning' },
-  hold_still:     { text: 'Face detected — hold still...', icon: '✋', type: 'info' },
-  counting:       { text: 'Hold steady...', icon: '📸', type: 'success' },
-  capturing:      { text: 'Capturing...', icon: '⚡', type: 'success' },
-  uploading:      { text: 'Analyzing face...', icon: '🔄', type: 'info' },
-  approved:       { text: 'Sample approved!', icon: '✅', type: 'success' },
-  rejected:       { text: 'Try again', icon: '❌', type: 'error' },
-  complete:       { text: 'All samples captured!', icon: '🎉', type: 'success' },
+  no_camera:    { text: 'Starting camera…',                    icon: '📷', type: 'info'    },
+  position:     { text: 'Centre your face in the oval',        icon: '👤', type: 'info'    },
+  too_dark:     { text: 'Move to a brighter spot',            icon: '💡', type: 'warning' },
+  no_face:      { text: 'Look straight at the camera',         icon: '👀', type: 'warning' },
+  eyes_closed:  { text: 'Please open your eyes',               icon: '👁️', type: 'warning' },
+  turn_face:    { text: 'Face the camera directly',            icon: '🎯', type: 'warning' },
+  hold_still:   { text: 'Hold still…',                         icon: '✋', type: 'info'    },
+  counting:     { text: 'Capturing in…',                       icon: '📸', type: 'success' },
+  capturing:    { text: 'Capturing…',                          icon: '⚡', type: 'success' },
+  uploading:    { text: 'Analysing…',                          icon: '🔄', type: 'info'    },
+  approved:     { text: 'Sample approved!',                    icon: '✅', type: 'success' },
+  rejected:     { text: 'Please try again',                    icon: '❌', type: 'error'   },
+  complete:     { text: 'Face capture complete!',              icon: '🎉', type: 'success' },
 };
 
 const MIN_SAMPLES = 3;
 const MAX_SAMPLES = 5;
-const COUNTDOWN_SECONDS = 3;
-const HOLD_STILL_MS = 500; // How long face must be stable before countdown
-const RESULT_DISPLAY_MS = 2000; // How long to show result before next capture
-const ANALYSIS_INTERVAL_MS = 150; // How often to analyze frame
+const COUNTDOWN_SECONDS    = 1;    // was 3 — face-box stability is reliable now
+const HOLD_STILL_MS        = 200;  // was 500 — 200ms of confirmed stillness before countdown
+const RESULT_DISPLAY_MS    = 1500; // was 2000
+const ANALYSIS_INTERVAL_MS = 120;  // was 150 — slightly faster feedback cycle
 
 // ============================================================================
 // Inner component (needs Suspense boundary for useSearchParams)
@@ -106,11 +108,11 @@ function FaceCaptureInner() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [approved]);
 
-  // Show manual fallback after 30 seconds
+  // Show manual capture button after 12 seconds (was 30 — surface it faster)
   useEffect(() => {
     fallbackTimerRef.current = setTimeout(() => {
       setShowManualFallback(true);
-    }, 30000);
+    }, 12000);
     return () => {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     };
@@ -252,15 +254,18 @@ function FaceCaptureInner() {
         const analysis = await analyzeFrame();
         if (!analysis) return;
 
-        const { centerBrightness, skinToneRatio, isStable } = analysis;
+        const {
+          centerBrightness, skinToneRatio, isStable,
+          eyesOpen, faceFrontal,
+        } = analysis;
 
-        // Update quality display every 2nd tick to avoid excessive re-renders
+        // Update quality display every 2nd tick
         frameDataTickRef.current += 1;
         if (frameDataTickRef.current % 2 === 0) {
           setFrameData({ brightness: centerBrightness, skinRatio: skinToneRatio, isStable });
         }
 
-        // Check conditions
+        // ── Quality gate checks (priority order) ────────────────────────────
         if (centerBrightness < 30) {
           setInstruction(INSTRUCTIONS.too_dark);
           setPhase('positioning');
@@ -268,29 +273,43 @@ function FaceCaptureInner() {
           return;
         }
 
-        if (skinToneRatio < 0.5) { // Adjusted from 0.12 since it now returns 1.0 or 0.0
+        if (skinToneRatio < 0.5) {
           setInstruction(INSTRUCTIONS.no_face);
           setPhase('positioning');
           holdStartRef.current = null;
           return;
         }
 
-        // Face is in position
-        if (skinToneRatio >= 0.5 && isStable) {
+        // NEW: real eyes-closed detection via MediaPipe blendshapes
+        if (!eyesOpen) {
+          setInstruction(INSTRUCTIONS.eyes_closed);
+          setPhase('positioning');
+          holdStartRef.current = null;
+          return;
+        }
+
+        // NEW: reject if face turned too far from camera
+        if (!faceFrontal) {
+          setInstruction(INSTRUCTIONS.turn_face);
+          setPhase('positioning');
+          holdStartRef.current = null;
+          return;
+        }
+
+        // ── All quality checks passed — proceed to stability → countdown ────
+        if (isStable) {
           if (!holdStartRef.current) {
             holdStartRef.current = Date.now();
             setPhase('hold-still');
             setInstruction(INSTRUCTIONS.hold_still);
             return;
           }
-
           const held = Date.now() - holdStartRef.current;
           if (held >= HOLD_STILL_MS) {
             holdStartRef.current = null;
             startCountdown();
           }
-        } else if (!isStable) {
-          // Reset if user moves
+        } else {
           if (currentPhase === 'hold-still') {
             holdStartRef.current = null;
             setPhase('positioning');
@@ -567,7 +586,7 @@ function FaceCaptureInner() {
                   ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                   : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/>}
               </svg>
-              {frameData.isStable ? 'Still' : 'Moving'}
+              {frameData.isStable ? 'Still' : 'Hold steady'}
             </div>
           </div>
         )}

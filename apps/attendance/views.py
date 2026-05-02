@@ -9,9 +9,6 @@ This is the core attendance engine implementing:
 5. Manual edit and late resumption backdating
 """
 import logging
-import tempfile
-import os
-from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import status, generics
@@ -199,37 +196,9 @@ class SignInView(APIView):
         }, status=status.HTTP_201_CREATED)
 
     def _extract_embedding(self, face_image):
-        """Extract Facenet512 embedding from an uploaded face image."""
-        try:
-            from deepface import DeepFace
-        except ImportError:
-            logger.warning('DeepFace not available — cannot extract embedding')
-            return None
-
-        temp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix='.jpg', dir=settings.MEDIA_ROOT
-            ) as tmp:
-                for chunk in face_image.chunks():
-                    tmp.write(chunk)
-                temp_path = tmp.name
-
-            embeddings = DeepFace.represent(
-                img_path=temp_path,
-                model_name=settings.DEEPFACE_MODEL,
-                detector_backend=settings.DEEPFACE_DETECTOR,
-                enforce_detection=True,
-            )
-            if embeddings:
-                return embeddings[0]['embedding']
-            return None
-        except Exception as e:
-            logger.error(f'Embedding extraction error: {e}')
-            return None
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
+        """Extract ArcFace embedding from an uploaded face image using InsightFace."""
+        from apps.core.face import extract_embedding_from_django_file
+        return extract_embedding_from_django_file(face_image)
 
 
 class SignOutView(APIView):
@@ -356,32 +325,9 @@ class SignOutView(APIView):
         })
 
     def _extract_embedding(self, face_image):
-        """Extract Facenet512 embedding from an uploaded face image (shared with SignInView)."""
-        try:
-            from deepface import DeepFace
-        except ImportError:
-            return None
-        temp_path = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix='.jpg', dir=settings.MEDIA_ROOT
-            ) as tmp:
-                for chunk in face_image.chunks():
-                    tmp.write(chunk)
-                temp_path = tmp.name
-            embeddings = DeepFace.represent(
-                img_path=temp_path,
-                model_name=settings.DEEPFACE_MODEL,
-                detector_backend=settings.DEEPFACE_DETECTOR,
-                enforce_detection=True,
-            )
-            return embeddings[0]['embedding'] if embeddings else None
-        except Exception as e:
-            logger.error(f'Sign-out embedding extraction error: {e}')
-            return None
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.remove(temp_path)
+        """Extract ArcFace embedding from an uploaded face image using InsightFace."""
+        from apps.core.face import extract_embedding_from_django_file
+        return extract_embedding_from_django_file(face_image)
 
 
 class OfflineSyncView(APIView):

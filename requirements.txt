@@ -7,14 +7,14 @@ django-cors-headers>=4.3
 # Database
 psycopg2-binary>=2.9
 
-# Face recognition
-deepface>=0.0.99
-tf-keras>=2.21           # required by deepface/retinaface with TF 2.x + Keras 3
-tensorflow>=2.21         # neural network backend for Facenet512
-# Note: opencv-python is installed automatically as a deepface dependency
+# Face recognition — InsightFace (ArcFace R100) + ONNX Runtime
+# Replaces DeepFace/TensorFlow. 3x faster, better accuracy, no TF dependency.
+insightface>=0.7.3
+onnxruntime>=1.17.0          # CPU inference (use onnxruntime-gpu on GPU VPS)
+opencv-python-headless>=4.8  # image I/O for InsightFace (headless = no GUI deps)
 
 # Data processing
-numpy>=2.0
+numpy>=1.24
 Pillow>=10.0
 pandas>=2.0
 
@@ -28,13 +28,15 @@ openpyxl>=3.1
 # Runtime utilities
 python-decouple>=3.8
 gunicorn>=21.2
-requests>=2.30          # used for downloading model weights
 
-# Note: After fresh install, pre-download Facenet512 model weights:
-#   python manage.py shell -c "
-#     import requests, pathlib
-#     url='https://github.com/serengil/deepface_models/releases/download/v1.0/facenet512_weights.h5'
-#     dest=pathlib.Path.home()/'.deepface'/'weights'/'facenet512_weights.h5'
-#     dest.parent.mkdir(parents=True,exist_ok=True)
-#     r=requests.get(url,stream=True); dest.write_bytes(r.content)
+# Note: InsightFace downloads models automatically on first use to ~/.insightface/models/
+# On a fresh VPS, pre-warm the models so the first request is not slow:
+#
+#   docker compose exec backend python -c "
+#     from apps.core.face import get_face_app
+#     app = get_face_app()
+#     print('InsightFace buffalo_l ready:', app)
 #   "
+#
+# Total download: ~500 MB (cached in insightface_models Docker volume).
+# Use 'buffalo_m' (~150 MB) or 'buffalo_s' (~90 MB) for a smaller footprint.
