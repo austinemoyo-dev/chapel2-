@@ -158,7 +158,7 @@ export default function StudentsPage() {
             <a
               key={student.id}
               href={`/admin/students/${student.id}`}
-              className="block p-4 rounded-xl bg-surface border border-border hover:border-border-light transition-colors"
+              className="block p-4 rounded-2xl glass-card card-lift border border-transparent hover:border-primary/20 transition-all duration-300"
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -180,7 +180,7 @@ export default function StudentsPage() {
         </div>
       )}
 
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Student">
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Student" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <Select
             id="add-student-type"

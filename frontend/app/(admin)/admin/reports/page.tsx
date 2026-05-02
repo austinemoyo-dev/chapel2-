@@ -82,7 +82,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <Card className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
+      <Card variant="glass" className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
         <Select
           id="rpt-semester"
           label="Semester"
@@ -118,7 +118,7 @@ export default function ReportsPage() {
           value={filters.week || ''}
           onChange={(e) => updateFilter('week', e.target.value)}
         />
-        <label className="flex items-center gap-2 rounded-xl bg-surface-2 border border-border px-4 py-2.5 text-sm">
+        <label className="flex items-center gap-2 rounded-xl glass-card border border-border/50 px-4 py-2.5 text-sm">
           <input
             type="checkbox"
             checked={filters.below_threshold === 'true'}
@@ -133,20 +133,20 @@ export default function ReportsPage() {
       ) : report ? (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="rounded-xl border border-border bg-surface p-4">
+            <div className="rounded-xl border border-border/50 glass-card p-4">
               <p className="text-xs text-muted">Total students</p>
               <p className="text-2xl font-bold">{report.total_students}</p>
             </div>
-            <div className="rounded-xl border border-danger/30 bg-danger/5 p-4">
+            <div className="rounded-xl border border-danger/30 glass-card bg-danger/5 p-4">
               <p className="text-xs text-muted">Exam risk</p>
               <p className="text-2xl font-bold text-danger">{report.students_below_threshold}</p>
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-[2rem] glass-card border border-border/50 p-2">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-surface-2 border-b border-border">
+                <tr className="bg-surface/30 border-b border-border/50">
                   <th className="text-left px-4 py-3 font-medium text-muted">Name</th>
                   <th className="text-left px-4 py-3 font-medium text-muted">ID</th>
                   <th className="text-center px-4 py-3 font-medium text-muted">Group</th>

@@ -42,9 +42,9 @@ function initials(name: string) {
 
 function ProfileField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl bg-surface-2 border border-border p-4">
+    <div className="rounded-xl glass-card border border-border/50 p-4">
       <p className="text-xs uppercase tracking-wide text-muted">{label}</p>
-      <div className="mt-1 text-sm font-medium break-words">{value || 'None'}</div>
+      <div className="mt-1 text-sm font-medium break-words text-foreground">{value || 'None'}</div>
     </div>
   );
 }
@@ -176,8 +176,8 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl">
-      <section className="overflow-hidden rounded-2xl border border-border bg-surface">
-        <div className="h-36 sm:h-44 bg-gradient-to-r from-surface-3 via-primary/20 to-success/20" />
+      <section className="overflow-hidden rounded-[2rem] glass-panel border border-white/40 shadow-[var(--shadow-premium)]">
+        <div className="h-36 sm:h-44 bg-mesh-purple" />
         <div className="px-5 sm:px-8 pb-6">
           <div className="-mt-16 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -233,7 +233,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_0.9fr] gap-6">
         <div className="space-y-6">
-          <Card>
+          <Card variant="glass">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Student Information</h2>
               <Badge variant={student.service_group ? 'info' : 'warning'}>{student.service_group || 'Unassigned'}</Badge>
@@ -250,22 +250,22 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </Card>
 
-          <Card>
+          <Card variant="glass">
             <h2 className="text-lg font-semibold mb-4">Registration & Verification</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="rounded-xl bg-surface-2 border border-border p-4">
+              <div className="rounded-xl glass-card border border-border/50 p-4">
                 <p className="text-xs text-muted">Account Status</p>
                 <p className={`text-lg font-bold mt-1 ${student.is_active ? 'text-success' : 'text-warning'}`}>
                   {student.is_active ? 'Active' : 'Inactive'}
                 </p>
               </div>
-              <div className="rounded-xl bg-surface-2 border border-border p-4">
+              <div className="rounded-xl glass-card border border-border/50 p-4">
                 <p className="text-xs text-muted">Face Samples</p>
                 <p className={`text-lg font-bold mt-1 ${student.face_registered ? 'text-success' : 'text-warning'}`}>
                   {student.approved_face_samples ?? 0}/5
                 </p>
               </div>
-              <div className="rounded-xl bg-surface-2 border border-border p-4">
+              <div className="rounded-xl glass-card border border-border/50 p-4">
                 <p className="text-xs text-muted">Duplicate Flag</p>
                 <p className={`text-lg font-bold mt-1 ${student.duplicate_flag ? 'text-danger' : 'text-success'}`}>
                   {student.duplicate_flag ? 'Needs Review' : 'Clear'}
@@ -278,7 +278,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </Card>
 
-          <Card>
+          <Card variant="glass">
             <h2 className="text-lg font-semibold mb-2">Attendance History</h2>
             <p className="text-sm text-muted">
               A student-scoped attendance endpoint is needed to render complete history here without over-fetching every service.
@@ -287,7 +287,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         </div>
 
         <aside className="space-y-6">
-          <Card>
+          <Card variant="glass">
             <h2 className="text-lg font-semibold mb-4">Profile Photo</h2>
             <div className="aspect-square rounded-2xl overflow-hidden bg-surface-2 border border-border flex items-center justify-center">
               {photoUrl ? (
@@ -304,7 +304,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </Card>
 
-          <Card>
+          <Card variant="glass">
             <h2 className="text-lg font-semibold mb-4">Service Assignment</h2>
             <div className="rounded-2xl bg-primary/10 border border-primary/20 p-5 text-center">
               <p className="text-xs text-muted">Current Group</p>
@@ -318,7 +318,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             )}
           </Card>
 
-          <Card>
+          <Card variant="glass">
             <h2 className="text-lg font-semibold mb-4">Quick Facts</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between gap-4"><span className="text-muted">Student ID</span><span className="text-right break-all">{student.id}</span></div>
@@ -329,7 +329,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         </aside>
       </div>
 
-      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Student">
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Student" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <Input id="edit-name" label="Full Name" value={form.full_name || ''} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
           <Input id="edit-phone" label="Phone" value={form.phone_number || ''} onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))} />
@@ -351,7 +351,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </Modal>
 
-      <Modal open={showBackdate} onClose={() => setShowBackdate(false)} title="Late Resumption Backdating">
+      <Modal open={showBackdate} onClose={() => setShowBackdate(false)} title="Late Resumption Backdating" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <Select
             id="backdate-type"
@@ -385,7 +385,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </Modal>
 
-      <Modal open={showDelete} onClose={() => setShowDelete(false)} title="Delete Student">
+      <Modal open={showDelete} onClose={() => setShowDelete(false)} title="Delete Student" className="glass-panel backdrop-blur-md">
         <p className="text-sm text-muted mb-4">
           This will permanently delete <strong>{student.full_name}</strong> and all their records. This action cannot be undone.
         </p>

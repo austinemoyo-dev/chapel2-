@@ -152,15 +152,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             href={item.href}
             onClick={onNavigate}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
-                        transition-all duration-200 group
+                        transition-all duration-300 group
                         ${active
-                          ? 'nav-pill-active'
+                          ? 'nav-pill-active shadow-[0_4px_16px_rgba(124,58,237,0.15)]'
                           : 'text-muted hover:text-foreground hover:bg-surface-2'}`}
           >
             <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
-                              transition-colors duration-200
+                              transition-colors duration-300
                               ${active
-                                ? 'bg-primary/15 text-primary'
+                                ? 'bg-primary/20 text-primary'
                                 : 'bg-surface-2 text-muted group-hover:bg-primary/10 group-hover:text-primary'}`}>
               {NAV_ICONS[item.iconKey]}
             </span>
@@ -178,12 +178,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="flex flex-col h-full">
       {/* Brand header */}
       <div className="px-5 pt-6 pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-mesh-purple flex items-center justify-center shadow-sm">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-                    d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"/>
-            </svg>
+        <div className="flex items-center gap-2.5 group cursor-pointer">
+          <div className="w-8 h-8 rounded-xl bg-white shadow-[0_4px_12px_rgba(124,58,237,0.4)]
+                          flex items-center justify-center animate-float-subtle overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Veritas Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-sm font-bold text-foreground leading-tight">Chapel Admin</p>
@@ -228,10 +227,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-dvh flex bg-background">
 
       {/* ── Desktop Sidebar — liquid glass ── */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col
-                         bg-[rgba(255,255,255,0.75)] backdrop-blur-2xl
-                         border-r border-white/40
-                         shadow-[1px_0_0_rgba(255,255,255,0.5),4px_0_32px_rgba(139,0,255,0.04)]">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col glass-panel border-l-0 border-y-0 rounded-none z-10">
         <SidebarContent />
       </aside>
 
@@ -240,8 +236,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="lg:hidden fixed inset-0 z-50" onClick={() => setMobileOpen(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"/>
           <div
-            className="absolute left-0 top-0 bottom-0 w-72
-                       bg-[rgba(255,255,255,0.85)] backdrop-blur-3xl
+            className="absolute left-0 top-0 bottom-0 w-72 glass-panel border-l-0 rounded-none
                        shadow-[4px_0_40px_rgba(0,0,0,0.18)] animate-slide-in-left"
             onClick={(e) => e.stopPropagation()}
           >
@@ -254,18 +249,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Mobile compact top bar */}
-        <header className="lg:hidden sticky top-0 z-40
-                            bg-[rgba(255,255,255,0.82)] backdrop-blur-2xl
-                            border-b border-white/50
-                            shadow-[0_1px_0_rgba(255,255,255,0.6)_inset,0_2px_16px_rgba(0,0,0,0.06)]">
+        <header className="lg:hidden sticky top-0 z-40 glass-panel border-t-0 border-x-0 rounded-none">
           <div className="flex items-center justify-between px-4 py-2.5"
                style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top))' }}>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-mesh-purple flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"/>
-                </svg>
+              <div className="w-7 h-7 rounded-xl bg-white flex items-center justify-center overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Veritas Logo" className="w-full h-full object-contain" />
               </div>
               <span className="text-sm font-black text-foreground">Chapel Admin</span>
             </div>
@@ -287,12 +277,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* ── Mobile Bottom Pill Navigation Bar ── */}
         <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40"
              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-          <div className="mx-3 mb-2">
-            <div className="flex items-center justify-around
-                            bg-[rgba(255,255,255,0.88)] backdrop-blur-3xl
-                            rounded-[2rem] border border-white/55
-                            shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,0_-2px_0_rgba(0,0,0,0.03)_inset,0_8px_40px_rgba(0,0,0,0.14),0_2px_8px_rgba(0,0,0,0.08)]
-                            px-2 py-2">
+          <div className="mx-3 mb-2 animate-slide-up-spring">
+            <div className="flex items-center justify-around glass-panel rounded-[2rem] px-2 py-2">
               {/* First 4 visible nav items */}
               {visibleNav.slice(0, 4).map((item) => {
                 const active = pathname.startsWith(item.href);

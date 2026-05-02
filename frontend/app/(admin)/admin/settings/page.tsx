@@ -138,7 +138,7 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* Semesters Management */}
-      <Card>
+      <Card variant="glass">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <span className="text-2xl">📅</span>
@@ -153,7 +153,7 @@ export default function SettingsPage() {
         </div>
 
         {showSemesterForm && (
-          <form onSubmit={handleCreateSemester} className="bg-surface-2 p-5 rounded-xl border border-border mb-4 grid gap-4 grid-cols-1 md:grid-cols-2 animate-slide-up">
+          <form onSubmit={handleCreateSemester} className="glass-card p-5 rounded-xl border border-border/50 mb-4 grid gap-4 grid-cols-1 md:grid-cols-2 animate-slide-up">
             <div>
               <label className="block text-xs font-medium text-muted mb-1">Name</label>
               <input required value={newSemester.name} onChange={e => setNewSemester({...newSemester, name: e.target.value})} className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 2025/2026 Alpha Semester" />
@@ -179,13 +179,13 @@ export default function SettingsPage() {
         )}
 
         {semesters.length === 0 ? (
-          <div className="py-8 text-center bg-surface-2 rounded-xl border border-dashed border-border">
+          <div className="py-8 text-center glass-card rounded-xl border border-dashed border-border/50">
             <p className="text-sm text-muted">No semesters found. Create one to enable registration.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {semesters.map(s => (
-              <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface-2 hover:border-primary/30 transition-colors">
+              <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 glass-card hover:border-primary/40 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-sm">{s.name}</p>
@@ -203,12 +203,12 @@ export default function SettingsPage() {
       </Card>
 
       {/* Registration Window */}
-      <Card>
+      <Card variant="glass">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-2xl">📋</span>
           <h2 className="text-lg font-semibold">Registration Window</h2>
         </div>
-        <div className="flex items-center justify-between bg-surface-2 rounded-xl px-4 py-3 border border-border">
+        <div className="flex items-center justify-between glass-card rounded-xl px-4 py-3 border border-border/50">
           <div>
             <p className="text-sm font-medium">Student Self-Registration</p>
             <p className="text-xs text-muted">Allow students to register for the active semester</p>
@@ -229,7 +229,7 @@ export default function SettingsPage() {
       </Card>
 
       {/* Geo-fence */}
-      <Card>
+      <Card variant="glass">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <span className="text-2xl">📍</span>

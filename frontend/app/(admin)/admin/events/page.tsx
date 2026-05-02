@@ -201,8 +201,8 @@ export default function AdminEventsPage() {
         <button
           onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold text-white
-                     shadow-[0_4px_16px_rgba(124,58,237,0.35)]"
-          style={{ background: 'linear-gradient(135deg, #7C3AED, #A855F7)' }}
+                     shadow-[0_4px_16px_rgba(124,58,237,0.35)] btn-liquid"
+          style={{ background: 'var(--color-primary)' }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
@@ -225,21 +225,20 @@ export default function AdminEventsPage() {
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="text-center py-20 text-muted">
-          <div className="w-16 h-16 rounded-3xl bg-primary/8 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-primary/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="text-center py-20 text-muted glass-card rounded-[2rem]">
+          <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                     d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
             </svg>
           </div>
-          <p className="font-semibold">No events yet</p>
+          <p className="font-semibold text-foreground">No events yet</p>
           <p className="text-sm mt-1">Create your first event to display it on the landing page</p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {events.map((ev) => (
-            <div key={ev.id} className="rounded-3xl overflow-hidden border border-border bg-surface
-                                        shadow-[var(--shadow-card)] flex flex-col">
+            <div key={ev.id} className="glass-card card-lift flex flex-col border-0">
               {/* Flyer / gradient */}
               <div className="relative h-36 shrink-0 overflow-hidden">
                 {ev.flyer_url ? (
@@ -339,11 +338,11 @@ export default function AdminEventsPage() {
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
              onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in"/>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-md animate-fade-in"/>
 
           <div className="relative z-10 w-full sm:max-w-lg rounded-t-[2rem] sm:rounded-[2rem]
-                          bg-[rgba(255,255,255,0.96)] backdrop-blur-3xl overflow-hidden
-                          shadow-[0_-4px_40px_rgba(0,0,0,0.18)] animate-slide-up-fade
+                          glass-panel overflow-hidden
+                          shadow-[0_-4px_40px_rgba(0,0,0,0.2)] animate-slide-up-fade
                           max-h-[92dvh] flex flex-col">
 
             {/* Modal header */}
@@ -567,9 +566,8 @@ export default function AdminEventsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white
-                           shadow-[0_4px_16px_rgba(124,58,237,0.35)] disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #7C3AED, #A855F7)' }}
+                className="flex-1 py-3 rounded-2xl text-sm font-bold text-white btn-liquid
+                           shadow-[0_4px_16px_rgba(124,58,237,0.35)] disabled:opacity-50 bg-primary"
               >
                 {saving ? 'Saving…' : editing ? 'Save Changes' : 'Create Event'}
               </button>

@@ -138,7 +138,7 @@ export default function UsersPage() {
 
       <div className="space-y-2">
         {users.map((user) => (
-          <Card key={user.id} className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <Card key={user.id} variant="glass" className="card-lift flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-medium">{user.full_name}</p>
@@ -165,7 +165,7 @@ export default function UsersPage() {
         ))}
       </div>
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit User' : 'Create User'}>
+      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit User' : 'Create User'} className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <Input id="usr-email" label="Email" type="email" value={form.email || ''} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
           <Input id="usr-name" label="Full Name" value={form.full_name || ''} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} />
@@ -175,10 +175,10 @@ export default function UsersPage() {
 
 
           {form.role === ROLES.PROTOCOL_MEMBER && (
-            <div className="bg-surface-2 border border-border rounded-xl p-3 text-sm text-muted flex items-start gap-2.5">
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-sm text-muted flex items-start gap-2.5">
               <span className="text-lg">📱</span>
               <div>
-                <p className="font-medium text-foreground">Device binding required</p>
+                <p className="font-medium text-primary">Device binding required</p>
                 <p className="mt-0.5">After creating this account, the protocol member must log in from their device. Their device will be <strong>automatically bound</strong> on their first login.</p>
               </div>
             </div>
@@ -212,7 +212,7 @@ export default function UsersPage() {
         </div>
       </Modal>
 
-      <Modal open={!!bindTarget} onClose={() => setBindTarget(null)} title="Reset Device Binding">
+      <Modal open={!!bindTarget} onClose={() => setBindTarget(null)} title="Reset Device Binding" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <div className="bg-surface-2 border border-border rounded-xl p-3 text-sm text-muted">
             <p className="font-medium text-foreground mb-1">ℹ️ How device binding works</p>

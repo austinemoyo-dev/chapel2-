@@ -281,7 +281,7 @@ After going live, do these in the dashboard before announcing the system:
 cd /home/deploy/chapel
 git pull origin main
 docker compose up -d --build
-docker compose exec backend python manage.py migrate --noinput
+docker compose exec backend python manage.py migrate --noinput # use this whenever there is a change in the models.py file
 ```
 
 ### Restart a single service

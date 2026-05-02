@@ -32,14 +32,13 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={`
-              w-full bg-surface border rounded-xl text-sm text-foreground
+              w-full input-glass rounded-xl text-sm text-foreground
               placeholder:text-muted/45 transition-all duration-200
               px-4 py-3
-              border-border
               shadow-[var(--shadow-xs)]
               focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15
               focus:shadow-[0_0_0_3px_rgba(124,58,237,0.08)]
-              hover:border-border-light
+              hover:border-primary/20
               ${icon      ? 'pl-10'  : ''}
               ${iconRight ? 'pr-10'  : ''}
               ${error     ? 'border-danger focus:border-danger focus:ring-danger/15' : ''}

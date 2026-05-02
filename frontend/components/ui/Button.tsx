@@ -34,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants: Record<string, string> = {
       primary:
-        `bg-primary text-white
+        `bg-primary text-white btn-liquid
          shadow-[0_4px_14px_rgba(124,58,237,0.35)]
          hover:bg-primary-hover hover:shadow-[0_6px_20px_rgba(124,58,237,0.45)]
          hover:-translate-y-0.5`,

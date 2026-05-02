@@ -402,7 +402,7 @@ export default function ServicesPage() {
               return (
                 <div
                   key={group}
-                  className={`rounded-2xl border p-5 transition-all ${colors.border} ${colors.glow} bg-surface`}
+                  className={`rounded-[2rem] glass-card card-lift border p-5 transition-all ${colors.border} ${colors.glow}`}
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between mb-4">
@@ -502,7 +502,7 @@ export default function ServicesPage() {
           )}
 
           {/* Total summary */}
-          <Card className="flex items-center justify-between">
+          <Card variant="glass" className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Total Students</p>
               <p className="text-xs text-muted">Across all service groups</p>
@@ -546,7 +546,7 @@ export default function ServicesPage() {
                 ) : (
                   <div className="space-y-2">
                     {typeServices.map((service) => (
-                      <Card key={service.id} className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <Card key={service.id} variant="glass" className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between card-lift">
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium">
@@ -596,7 +596,7 @@ export default function ServicesPage() {
       {/* SINGLE CREATE/EDIT SERVICE MODAL                                    */}
       {/* ================================================================== */}
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Service' : 'Create Single Service'}>
+      <Modal open={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Service' : 'Create Single Service'} className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <Select id="svc-type" label="Service Type" options={[{ value: 'midweek', label: '📖 Midweek' }, { value: 'sunday', label: '⛪ Sunday' }, { value: 'special', label: '🌟 Special' }]} value={form.service_type || ''} onChange={(e) => handleTypeChange(e.target.value)} />
           {form.service_type !== 'special' ? (
@@ -632,7 +632,7 @@ export default function ServicesPage() {
       {/* BULK SCHEDULING WIZARD                                              */}
       {/* ================================================================== */}
 
-      <Modal open={showBulk} onClose={() => { if (!bulkCreating) setShowBulk(false); }} title={`Schedule Services — Step ${bulkStep} of 4`}>
+      <Modal open={showBulk} onClose={() => { if (!bulkCreating) setShowBulk(false); }} title={`Schedule Services — Step ${bulkStep} of 4`} className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           {/* Step indicator */}
           <div className="flex gap-1">
@@ -727,7 +727,7 @@ export default function ServicesPage() {
       </Modal>
 
       {/* Cancel confirmation modal */}
-      <Modal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Service">
+      <Modal open={!!cancelTarget} onClose={() => setCancelTarget(null)} title="Cancel Service" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">
           <div className="bg-warning-muted border border-warning/20 rounded-xl p-3 text-sm">
             <p className="font-medium text-warning mb-1">⚠️ This action affects attendance</p>

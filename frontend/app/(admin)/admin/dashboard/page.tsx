@@ -54,11 +54,11 @@ function QuickAction({
 }: { href: string; icon: React.ReactNode; label: string; description: string }) {
   return (
     <Link href={href}
-          className="group flex items-center gap-4 p-4 rounded-2xl bg-surface-2
-                     hover:bg-primary-muted border border-transparent
-                     hover:border-primary/15 transition-all duration-200 hover:-translate-y-0.5">
-      <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center
-                      shadow-[var(--shadow-xs)] text-muted group-hover:text-primary
+          className="group flex items-center gap-4 p-4 rounded-2xl glass-card
+                     border border-transparent hover:border-primary/25
+                     card-lift transition-all duration-300">
+      <div className="w-10 h-10 rounded-xl bg-surface/50 flex items-center justify-center
+                      shadow-sm text-muted group-hover:text-primary
                       group-hover:bg-primary/10 transition-colors shrink-0">
         {icon}
       </div>
@@ -219,7 +219,7 @@ export default function DashboardPage() {
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card) => (
-          <Card key={card.label} className="relative overflow-hidden group">
+          <Card key={card.label} variant="glass" className="relative overflow-hidden group card-lift">
             {/* Subtle corner glow */}
             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full
                             bg-primary/5 group-hover:bg-primary/10 transition-colors"/>
@@ -235,7 +235,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Live Services ── */}
-      <Card>
+      <Card variant="glass">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             {liveServices.length > 0 ? (
@@ -255,11 +255,11 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {liveServices.map((s) => (
               <div key={s.id}
-                   className="flex items-center justify-between bg-success-muted
-                              border border-success/20 rounded-xl px-4 py-3">
+                   className="flex items-center justify-between glass-purple
+                              rounded-xl px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-success/15 text-success
-                                  flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-white/20 text-primary-deep
+                                  flex items-center justify-center shadow-sm">
                     {serviceTypeIcon(s.service_type)}
                   </div>
                   <div>
@@ -346,7 +346,7 @@ export default function DashboardPage() {
       </Card>
 
       {/* ── Quick Actions ── */}
-      <Card>
+      <Card variant="glass" className="mb-8">
         <h2 className="text-base font-bold text-foreground mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <QuickAction href="/admin/students"
