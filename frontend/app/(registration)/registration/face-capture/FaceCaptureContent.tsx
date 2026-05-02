@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { registrationService } from '@/lib/api/registrationService';
+import { ApiError } from '@/lib/api/client';
 import { useCamera } from '@/lib/hooks/useCamera';
 import { useToast } from '@/providers/ToastProvider';
 import Spinner from '@/components/ui/Spinner';
@@ -193,14 +194,25 @@ function FaceCaptureInner() {
         }
       }, RESULT_DISPLAY_MS);
 
-    } catch {
-      setInstruction({ text: 'Upload failed. Retrying...', icon: '⚠️', type: 'error' });
+    } catch (err: any) {
+      let errMsg = 'Upload failed. Retrying...';
+      if (err instanceof ApiError) {
+        if (err.data && typeof err.data === 'object' && err.data.detail) {
+          errMsg = String(err.data.detail);
+        } else if (err.message) {
+          errMsg = err.message;
+        }
+      } else if (err?.message) {
+        errMsg = err.message;
+      }
+      
+      setInstruction({ text: errMsg, icon: '⚠️', type: 'error' });
       setPhase('result');
       setTimeout(() => {
         setPhase('positioning');
         setInstruction(INSTRUCTIONS.position);
         holdStartRef.current = null;
-      }, RESULT_DISPLAY_MS);
+      }, 3000); // 3 seconds to read the exact error
     }
   }, [captureFrame, studentId, semesterId, addToast]);
 
