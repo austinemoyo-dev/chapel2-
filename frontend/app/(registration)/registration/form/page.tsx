@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { registrationService } from '@/lib/api/registrationService';
 import { useToast } from '@/providers/ToastProvider';
@@ -9,278 +9,378 @@ import { toTitleCase } from '@/lib/utils/formatters';
 import { LEVELS, GENDERS } from '@/lib/utils/constants';
 import Spinner from '@/components/ui/Spinner';
 
+/* ── Inline glass-section wrapper ─────────────────────────────────────────── */
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/70 px-1">{label}</p>
+      <div className="rounded-[1.4rem] overflow-hidden space-y-px"
+           style={{
+             background: 'rgba(255,255,255,0.50)',
+             backdropFilter: 'blur(24px) saturate(180%)',
+             WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+             border: '1.5px solid rgba(255,255,255,0.58)',
+             boxShadow: '0 1px 0 rgba(255,255,255,0.72) inset, 0 4px 16px rgba(0,0,0,0.05)',
+           }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ── Single field row inside a Section ────────────────────────────────────── */
+function FieldRow({
+  label, error, children, last = false
+}: {
+  label: string; error?: string; children: React.ReactNode; last?: boolean;
+}) {
+  return (
+    <div className={`px-4 pt-3 pb-3 ${!last ? 'border-b border-white/30' : ''}`}>
+      <label className="block text-[10px] font-bold uppercase tracking-widest text-foreground/50 mb-1.5">
+        {label}
+      </label>
+      {children}
+      {error && <p className="text-[11px] text-danger font-semibold mt-1.5">{error}</p>}
+    </div>
+  );
+}
+
 function RegistrationFormContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const router      = useRouter();
+  const params      = useSearchParams();
   const { addToast } = useToast();
-  const studentType = searchParams.get('type') || 'old';
-  const semesterId = searchParams.get('semester') || '';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const studentType = params.get('type') || 'old';
+  const semesterId  = params.get('semester') || '';
 
   const [form, setForm] = useState({
-    full_name: '',
+    full_name:    '',
     phone_number: '',
-    matric_number: '',
-    department: '',
-    level: '' as string,
-    gender: '' as string,
+    matric_number:'',
+    department:   '',
+    level:        '',
+    gender:       '',
   });
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [duplicateWarning, setDuplicateWarning] = useState<Record<string, unknown> | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [loading, setLoading]           = useState(false);
+  const [errors, setErrors]             = useState<Record<string, string>>({});
+  const [submitted, setSubmitted]       = useState(false);
 
-  // Prevent leaving the page after form submission (before face capture completes)
+  /* Warn before leaving after form submit */
   useEffect(() => {
     if (!submitted) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handle = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = 'Registration is not complete. You still need to capture your face. Are you sure you want to leave?';
+      e.returnValue = 'Registration is not complete — face capture still needed.';
       return e.returnValue;
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeunload', handle);
+    return () => window.removeEventListener('beforeunload', handle);
   }, [submitted]);
 
   const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: '' }));
+    setForm(p => ({ ...p, [field]: value }));
+    setErrors(p => ({ ...p, [field]: '' }));
   };
+
+  const handlePhotoChange = (file: File | null) => {
+    if (!file) return;
+    setProfilePhoto(file);
+    setErrors(p => ({ ...p, profile_photo: '' }));
+    const url = URL.createObjectURL(file);
+    setPhotoPreview(url);
+  };
+
+  /* Clean up object URL */
+  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
 
   const validate = (): boolean => {
-    const errs: Record<string, string> = {};
-    if (!form.full_name.trim() || form.full_name.trim().split(/\s+/).length < 2) {
-      errs.full_name = 'Enter your full name (at least 2 words)';
-    }
-    if (!form.phone_number.trim()) errs.phone_number = 'Phone number is required';
-    if (studentType === 'old' && !form.matric_number.trim()) {
-      errs.matric_number = 'Matric number is required for old students';
-    }
-    if (!form.department.trim()) errs.department = 'Department is required';
-    if (!form.level) errs.level = 'Select your level';
-    if (!form.gender) errs.gender = 'Select your gender';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    const e: Record<string, string> = {};
+    if (!form.full_name.trim() || form.full_name.trim().split(/\s+/).length < 2)
+      e.full_name = 'Enter your full name (at least first and last name)';
+    if (!form.phone_number.trim())
+      e.phone_number = 'Phone number is required';
+    if (studentType === 'old' && !form.matric_number.trim())
+      e.matric_number = 'Matric number is required';
+    if (!form.department.trim())
+      e.department = 'Department is required';
+    if (!form.level)   e.level  = 'Select your level';
+    if (!form.gender)  e.gender = 'Select your gender';
+    if (!profilePhoto) e.profile_photo = 'A profile photo is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!validate()) {
+      /* Scroll to first error */
+      setTimeout(() => {
+        document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+      return;
+    }
     setLoading(true);
-    setDuplicateWarning(null);
 
     try {
       const result = await registrationService.registerStudent({
-        student_type: studentType as 'old' | 'new',
-        full_name: toTitleCase(form.full_name),
-        phone_number: form.phone_number.trim(),
-        matric_number: studentType === 'old' ? form.matric_number.trim().toUpperCase() : undefined,
-        department: form.department.trim(),
-        level: form.level as typeof LEVELS[number],
-        gender: form.gender as 'male' | 'female',
-        profile_photo: profilePhoto || undefined,
-        semester: semesterId,
+        student_type:   studentType as 'old' | 'new',
+        full_name:      toTitleCase(form.full_name),
+        phone_number:   form.phone_number.trim(),
+        matric_number:  studentType === 'old' ? form.matric_number.trim().toUpperCase() : undefined,
+        department:     form.department.trim(),
+        level:          form.level as (typeof LEVELS)[number],
+        gender:         form.gender as 'male' | 'female',
+        profile_photo:  profilePhoto!,
+        semester:       semesterId,
       });
 
-      // Store student info in sessionStorage for the face capture step
       sessionStorage.setItem('chapel_registration', JSON.stringify({
-        studentId: result.id,
-        studentName: result.full_name,
-        systemId: result.system_id,
-        serviceGroup: result.service_group,
-        semesterId: semesterId,
+        studentId:     result.id,
+        studentName:   result.full_name,
+        systemId:      result.system_id,
+        serviceGroup:  result.service_group,
+        semesterId,
         duplicateFlag: result.duplicate_flag,
       }));
 
       setSubmitted(true);
 
-      // Check for duplicate flags
-      if (result.duplicate_flag && result.duplicate_results) {
-        setDuplicateWarning(result.duplicate_results);
-        addToast('Registration submitted but flagged for review', 'warning');
+      if (result.duplicate_flag) {
+        addToast('Registration submitted — flagged for admin review.', 'warning');
       } else {
         addToast('Details saved! Now complete face capture.', 'success');
       }
 
-      // Navigate to face capture
       router.push(`/registration/face-capture?student=${result.id}&semester=${semesterId}`);
     } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.data && typeof err.data === 'object') {
-          const fieldErrors: Record<string, string> = {};
-          Object.entries(err.data).forEach(([k, v]) => {
-            if (Array.isArray(v)) fieldErrors[k] = v.join(', ');
-            else if (typeof v === 'string') fieldErrors[k] = v;
-          });
-          setErrors(fieldErrors);
-        }
-        addToast(err.message, 'error');
+      if (err instanceof ApiError && err.data && typeof err.data === 'object') {
+        const fieldErrors: Record<string, string> = {};
+        Object.entries(err.data).forEach(([k, v]) => {
+          if (Array.isArray(v)) fieldErrors[k] = v.join(', ');
+          else if (typeof v === 'string') fieldErrors[k] = v;
+        });
+        setErrors(fieldErrors);
       }
+      addToast(err instanceof ApiError ? err.message : 'Something went wrong', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="p-5 sm:p-7 animate-fade-in">
+  const isOld = studentType === 'old';
 
-      {/* Header */}
+  return (
+    <div className="px-5 pt-5 pb-8 animate-slide-up-fade">
+
+      {/* ── Header ── */}
       <div className="mb-6">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full
-                        bg-primary-muted border border-primary/15 text-primary text-xs font-bold mb-3">
-          {studentType === 'old' ? '🎓 Returning Student' : '✨ New Student'}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full mb-3
+                        text-xs font-bold"
+             style={{
+               background: isOld ? 'rgba(124,58,237,0.12)' : 'rgba(168,85,247,0.12)',
+               border: isOld ? '1px solid rgba(124,58,237,0.18)' : '1px solid rgba(168,85,247,0.18)',
+               color: isOld ? '#7C3AED' : '#A855F7',
+             }}>
+          {isOld ? '🎓 Returning Student' : '✨ New Student'}
         </div>
-        <h2 className="text-xl font-black text-foreground tracking-tight">Your Details</h2>
-        <p className="text-sm text-muted mt-0.5">All fields required. Face capture comes next.</p>
+        <h2 className="text-xl font-black text-foreground tracking-tight leading-tight">
+          Your Details
+        </h2>
+        <p className="text-xs text-muted mt-1">
+          All fields are required. Face capture follows after this.
+        </p>
       </div>
 
-      {/* Duplicate warning */}
-      {duplicateWarning && (
-        <div className="glass-purple rounded-2xl p-4 mb-5 border border-warning/20">
-          <p className="font-bold text-warning text-sm mb-1">Possible duplicate detected</p>
-          <p className="text-muted text-xs">Flagged for admin review — you can still continue.</p>
-        </div>
-      )}
+      <form onSubmit={handleSubmit} noValidate className="space-y-5">
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Full name */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">
-            Full Name
-          </label>
+        {/* ── Profile Photo (top, prominent, required) ──────────────────── */}
+        <div className="flex flex-col items-center gap-3 py-2">
+          {/* Photo circle */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="relative w-24 h-24 rounded-full shrink-0 touch-manipulation group"
+            style={{
+              background: photoPreview ? 'transparent' : 'rgba(124,58,237,0.08)',
+              border: errors.profile_photo
+                ? '2.5px solid rgba(220,38,38,0.6)'
+                : photoPreview
+                ? '2.5px solid rgba(124,58,237,0.5)'
+                : '2px dashed rgba(124,58,237,0.30)',
+              boxShadow: photoPreview ? '0 8px 32px rgba(124,58,237,0.20)' : 'none',
+            }}
+          >
+            {photoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoPreview}
+                alt="Profile preview"
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <svg className="w-7 h-7 text-primary/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"/>
+                </svg>
+                <span className="text-[9px] font-bold text-primary/60 uppercase tracking-wide">Tap to add</span>
+              </div>
+            )}
+
+            {/* Edit badge on hover when photo is set */}
+            {photoPreview && (
+              <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-active:opacity-100
+                              flex items-center justify-center transition-opacity">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                </svg>
+              </div>
+            )}
+          </button>
+
+          <div className="text-center">
+            <p className="text-xs font-bold text-foreground/80">
+              {photoPreview ? 'Profile photo selected' : 'Profile Photo'}
+              <span className="ml-1 text-danger">*</span>
+            </p>
+            <p className="text-[10px] text-muted mt-0.5">
+              {photoPreview ? 'Tap to change' : 'A clear photo of your face'}
+            </p>
+          </div>
+
+          {errors.profile_photo && (
+            <p data-error="true" className="text-[11px] text-danger font-semibold text-center">
+              {errors.profile_photo}
+            </p>
+          )}
+
           <input
-            id="reg-full-name"
-            type="text"
-            placeholder="John Emmanuel Doe"
-            value={form.full_name}
-            onChange={(e) => handleChange('full_name', e.target.value)}
-            onBlur={(e) => handleChange('full_name', toTitleCase(e.target.value))}
-            required
-            className="input-glass w-full rounded-2xl px-4 py-3.5 text-sm text-foreground
-                       placeholder:text-muted/45 focus:outline-none"
-            style={{ fontSize: '16px' /* prevent iOS zoom */ }}
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
           />
-          {errors.full_name && <p className="text-xs text-danger font-medium">{errors.full_name}</p>}
         </div>
 
-        {/* Phone */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">
-            Phone Number
-          </label>
-          <input
-            id="reg-phone"
-            type="tel"
-            placeholder="+234 xxx xxx xxxx"
-            value={form.phone_number}
-            onChange={(e) => handleChange('phone_number', e.target.value)}
-            required
-            className="input-glass w-full rounded-2xl px-4 py-3.5 text-sm text-foreground
-                       placeholder:text-muted/45 focus:outline-none"
-            style={{ fontSize: '16px' }}
-          />
-          {errors.phone_number && <p className="text-xs text-danger font-medium">{errors.phone_number}</p>}
-        </div>
-
-        {/* Matric (old students) */}
-        {studentType === 'old' && (
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">
-              Matric Number
-            </label>
+        {/* ── Personal Information ── */}
+        <Section label="Personal Information">
+          <FieldRow label="Full Name" error={errors.full_name}>
             <input
-              id="reg-matric"
               type="text"
-              placeholder="CSC/2023/001"
-              value={form.matric_number}
-              onChange={(e) => handleChange('matric_number', e.target.value)}
-              required
-              className="input-glass w-full rounded-2xl px-4 py-3.5 text-sm text-foreground
-                         placeholder:text-muted/45 focus:outline-none"
+              placeholder="John Emmanuel Doe"
+              value={form.full_name}
+              onChange={(e) => handleChange('full_name', e.target.value)}
+              onBlur={(e) => handleChange('full_name', toTitleCase(e.target.value))}
+              data-error={!!errors.full_name}
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
+                         focus:outline-none py-0.5"
               style={{ fontSize: '16px' }}
             />
-            {errors.matric_number && <p className="text-xs text-danger font-medium">{errors.matric_number}</p>}
-          </div>
-        )}
+          </FieldRow>
 
-        {/* Department */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">
-            Department
-          </label>
-          <input
-            id="reg-department"
-            type="text"
-            placeholder="Computer Science"
-            value={form.department}
-            onChange={(e) => handleChange('department', e.target.value)}
-            required
-            className="input-glass w-full rounded-2xl px-4 py-3.5 text-sm text-foreground
-                       placeholder:text-muted/45 focus:outline-none"
-            style={{ fontSize: '16px' }}
-          />
-          {errors.department && <p className="text-xs text-danger font-medium">{errors.department}</p>}
-        </div>
+          <FieldRow label="Phone Number" error={errors.phone_number}>
+            <input
+              type="tel"
+              placeholder="+234 810 000 0000"
+              value={form.phone_number}
+              onChange={(e) => handleChange('phone_number', e.target.value)}
+              data-error={!!errors.phone_number}
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
+                         focus:outline-none py-0.5"
+              style={{ fontSize: '16px' }}
+            />
+          </FieldRow>
 
-        {/* Level + Gender */}
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            {
-              id: 'reg-level', label: 'Level', field: 'level',
-              options: LEVELS.map((l) => ({ value: l, label: `${l} Level` })),
-            },
-            {
-              id: 'reg-gender', label: 'Gender', field: 'gender',
-              options: GENDERS.map((g) => ({ value: g, label: g.charAt(0).toUpperCase() + g.slice(1) })),
-            },
-          ].map(({ id, label, field, options }) => (
-            <div key={id} className="space-y-1.5">
-              <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">{label}</label>
-              <select
-                id={id}
-                value={form[field as keyof typeof form]}
-                onChange={(e) => handleChange(field, e.target.value)}
-                required
-                className="input-glass w-full rounded-2xl px-4 py-3.5 text-sm text-foreground
-                           focus:outline-none appearance-none bg-no-repeat"
-                style={{ fontSize: '16px', backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' stroke=\'%236E6A8A\' stroke-width=\'1.5\' fill=\'none\'/%3E%3C/svg%3E")', backgroundPosition: 'right 14px center', backgroundSize: '12px 8px' }}
-              >
-                <option value="">Select</option>
-                {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {errors[field] && <p className="text-xs text-danger font-medium">{errors[field]}</p>}
+          {isOld && (
+            <FieldRow label="Matric Number" error={errors.matric_number} last>
+              <input
+                type="text"
+                placeholder="CSC/2023/001"
+                value={form.matric_number}
+                onChange={(e) => handleChange('matric_number', e.target.value.toUpperCase())}
+                data-error={!!errors.matric_number}
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
+                           focus:outline-none py-0.5 font-mono tracking-wide"
+                style={{ fontSize: '16px' }}
+              />
+            </FieldRow>
+          )}
+
+          {!isOld && (
+            <FieldRow label="Note" last>
+              <p className="text-xs text-muted py-0.5">
+                Your matric number will be assigned by the university and can be added later via a secure link from the admin.
+              </p>
+            </FieldRow>
+          )}
+        </Section>
+
+        {/* ── Academic Information ── */}
+        <Section label="Academic Information">
+          <FieldRow label="Department" error={errors.department}>
+            <input
+              type="text"
+              placeholder="e.g. Computer Science"
+              value={form.department}
+              onChange={(e) => handleChange('department', e.target.value)}
+              data-error={!!errors.department}
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/40
+                         focus:outline-none py-0.5"
+              style={{ fontSize: '16px' }}
+            />
+          </FieldRow>
+
+          <FieldRow label="Level" error={errors.level}>
+            <select
+              value={form.level}
+              onChange={(e) => handleChange('level', e.target.value)}
+              className="w-full bg-transparent text-sm text-foreground focus:outline-none py-0.5
+                         appearance-none"
+              style={{ fontSize: '16px' }}
+            >
+              <option value="">Select level</option>
+              {LEVELS.map((l) => <option key={l} value={l}>{l} Level</option>)}
+            </select>
+          </FieldRow>
+
+          <FieldRow label="Gender" error={errors.gender} last>
+            <div className="flex gap-3 py-0.5">
+              {GENDERS.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => handleChange('gender', g)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all duration-200
+                    ${form.gender === g
+                      ? 'bg-primary text-white shadow-[0_4px_12px_rgba(124,58,237,0.35)]'
+                      : 'bg-white/50 text-muted border border-white/60'
+                    }`}
+                >
+                  {g.charAt(0).toUpperCase() + g.slice(1)}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+          </FieldRow>
+        </Section>
 
-        {/* Profile photo */}
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wide">
-            Profile Photo <span className="font-normal text-muted normal-case">(optional)</span>
-          </label>
-          <label className="flex items-center gap-3 input-glass rounded-2xl px-4 py-3.5 cursor-pointer">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-            </div>
-            <span className="text-sm text-muted flex-1">
-              {profilePhoto ? profilePhoto.name : 'Tap to choose a photo'}
-            </span>
-            <input type="file" accept="image/*" capture="user" className="hidden"
-                   onChange={(e) => setProfilePhoto(e.target.files?.[0] || null)}/>
-          </label>
-        </div>
-
-        {/* Submit */}
+        {/* ── Submit ── */}
         <button
           type="submit"
           disabled={loading}
-          className="btn-liquid w-full py-4 rounded-2xl bg-primary text-white font-black text-base
-                     shadow-[0_6px_24px_rgba(139,0,255,0.40)] disabled:opacity-50
-                     active:scale-[0.97] touch-manipulation mt-2"
+          className="btn-liquid w-full py-4 rounded-[1.2rem] font-black text-[0.95rem] text-white
+                     disabled:opacity-50 touch-manipulation mt-1"
+          style={{
+            background: 'linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)',
+            boxShadow: '0 6px 24px rgba(124,58,237,0.42), 0 1px 0 rgba(255,255,255,0.20) inset',
+          }}
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
@@ -290,8 +390,19 @@ function RegistrationFormContent() {
               </svg>
               Saving…
             </span>
-          ) : 'Continue to Face Capture →'}
+          ) : (
+            <span className="flex items-center justify-center gap-2">
+              Continue to Face Capture
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+              </svg>
+            </span>
+          )}
         </button>
+
+        <p className="text-center text-[10px] text-muted pt-1">
+          By continuing you confirm this is your own personal information
+        </p>
       </form>
     </div>
   );

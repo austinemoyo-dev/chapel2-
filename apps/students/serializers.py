@@ -88,6 +88,22 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
             return value.strip().upper()
         return value
 
+    def validate_profile_photo(self, value):
+        """
+        Profile photo is required for self-registering students.
+        Admins and Superadmins adding students manually may omit it.
+        """
+        if not value:
+            request = self.context.get('request')
+            is_admin = (
+                request and request.user
+                and request.user.is_authenticated
+                and request.user.role in ('superadmin', 'admin')
+            )
+            if not is_admin:
+                raise serializers.ValidationError('A profile photo is required to complete registration.')
+        return value
+
 
 class StudentListSerializer(serializers.ModelSerializer):
     """Read-only serializer for listing students."""
