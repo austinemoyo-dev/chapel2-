@@ -4,32 +4,24 @@ import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import Logo from '@/components/ui/Logo';
 import { useScrollReveal, useScrollY } from '@/lib/hooks/useScrollReveal';
+import { getPublishedEvents, type ChapelEvent } from '@/lib/api/eventsService';
+import { getPublishedSermons, type Sermon } from '@/lib/api/sermonsService';
 
-/* ─── Placeholder data (Phase 2 connects to real API) ─── */
-const EVENTS = [
-  {
-    id: 1, title: 'Midweek Revival Service',
-    date: 'Every Wednesday', time: '6:00 PM',
-    tag: 'Midweek', from: '#5000AA', to: '#9B00FF',
-  },
-  {
-    id: 2, title: 'Sunday Thanksgiving',
-    date: 'Every Sunday', time: '7:00 · 9:00 · 11:00 AM',
-    tag: 'Sunday', from: '#2D0062', to: '#7C00E0',
-  },
-  {
-    id: 3, title: 'Annual Chapel Week',
-    date: 'Coming Soon', time: 'All Week',
-    tag: 'Special', from: '#8B00FF', to: '#E040FF',
-  },
-];
+/* ─── Tag → fallback gradient (used when no flyer uploaded) ─── */
+const TAG_GRADIENTS: Record<string, [string, string]> = {
+  midweek:      ['#5000AA', '#9B00FF'],
+  sunday:       ['#2D0062', '#7C00E0'],
+  special:      ['#8B00FF', '#E040FF'],
+  conference:   ['#1A0060', '#6000CC'],
+  announcement: ['#3D0099', '#A000FF'],
+};
 
-const SERMONS = [
-  { id: 1, title: 'Walking in Purpose',     speaker: 'Chaplain',       date: 'Apr 2026', dur: '45 min' },
-  { id: 2, title: 'The Power of Fellowship', speaker: 'Guest Speaker',  date: 'Apr 2026', dur: '38 min' },
-  { id: 3, title: 'Faith Over Fear',         speaker: 'Chaplain',       date: 'Mar 2026', dur: '52 min' },
-  { id: 4, title: 'Building on the Word',    speaker: 'Chaplain',       date: 'Mar 2026', dur: '41 min' },
-];
+/* ─── Sermon tag → colour for the play-button icon when no thumbnail ─── */
+const SERMON_TAG_COLOR: Record<string, string> = {
+  midweek: '#7C3AED',
+  sunday:  '#6D28D9',
+  special: '#A855F7',
+};
 
 /* ─── Scroll reveal wrapper ─── */
 function Reveal({
@@ -56,81 +48,326 @@ function Reveal({
   );
 }
 
-/* ─── Event card ─── */
-function EventCard({ ev, delay }: { ev: typeof EVENTS[0]; delay: number }) {
+/* ─── Helpers ─── */
+function fmtDate(iso: string) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-NG', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+function fmtTime(t: string | null) {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+/* ─── Event card — flyer blending ─── */
+function EventCard({ ev, delay }: { ev: ChapelEvent; delay: number }) {
+  const [from, to] = TAG_GRADIENTS[ev.tag] ?? ['#5000AA', '#9B00FF'];
+  const timeStr = fmtTime(ev.event_time);
+
   return (
     <Reveal delay={delay}>
       <div className="glass-card card-lift overflow-hidden h-full group cursor-pointer select-none">
-        {/* Flyer header */}
-        <div
-          className="relative h-44 flex flex-col items-center justify-center overflow-hidden px-5 text-center"
-          style={{ background: `linear-gradient(135deg, ${ev.from}, ${ev.to})` }}
-        >
-          {/* Cross watermark */}
-          <svg className="absolute opacity-[0.08] w-28 h-28" viewBox="0 0 48 48" fill="white" aria-hidden>
-            <rect x="20" y="4"  width="8"  height="40" rx="2"/>
-            <rect x="4"  y="18" width="40" height="8"  rx="2"/>
-          </svg>
-          {/* Specular shine */}
-          <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none"/>
-          {/* Animated shine sweep on hover */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent
+        {/* Flyer / gradient header */}
+        <div className="relative h-44 overflow-hidden">
+          {ev.flyer_url ? (
+            /* ── Real flyer: full-bleed image + blending overlays ── */
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={ev.flyer_url}
+                alt={ev.title}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              {/* Purple brand tint — makes any flyer feel "chapel" */}
+              <div className="absolute inset-0 pointer-events-none"
+                   style={{ background: 'rgba(80,0,180,0.18)', mixBlendMode: 'multiply' }}/>
+              {/* Gradient darkens bottom so text is always readable */}
+              <div className="absolute inset-0 pointer-events-none"
+                   style={{ background: 'linear-gradient(to top, rgba(10,0,40,0.96) 0%, rgba(20,0,60,0.72) 40%, rgba(80,0,180,0.18) 70%, transparent 100%)' }}/>
+            </>
+          ) : (
+            /* ── No flyer: existing gradient placeholder ── */
+            <>
+              <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}/>
+              <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.07] w-28 h-28"
+                   viewBox="0 0 48 48" fill="white" aria-hidden>
+                <rect x="20" y="4"  width="8"  height="40" rx="2"/>
+                <rect x="4"  y="18" width="40" height="8"  rx="2"/>
+              </svg>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none"/>
+            </>
+          )}
+
+          {/* Hover shine — both variants */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/12 to-transparent
                           opacity-0 group-hover:opacity-100 -translate-x-full group-hover:translate-x-full
                           transition-all duration-700 pointer-events-none"/>
-          <span className="relative z-10 inline-flex px-3 py-1 rounded-full text-white/85 text-[10px]
-                           font-bold tracking-widest uppercase mb-2"
-                style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.22)' }}>
-            {ev.tag}
-          </span>
-          <p className="relative z-10 text-white font-black text-lg leading-snug">{ev.title}</p>
+
+          {/* Tag + title always visible at bottom */}
+          <div className="absolute bottom-0 inset-x-0 p-4 z-10">
+            <span className="inline-flex px-2.5 py-0.5 rounded-full text-white/90 text-[10px]
+                             font-bold tracking-widest uppercase mb-2"
+                  style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}>
+              {ev.tag}
+            </span>
+            <p className="text-white font-black text-base leading-snug line-clamp-2">{ev.title}</p>
+          </div>
         </div>
-        {/* Details */}
-        <div className="p-4 space-y-2">
+
+        {/* Date / time row */}
+        <div className="px-4 py-3 space-y-1.5">
           <div className="flex items-center gap-2 text-xs text-muted">
             <svg className="w-3.5 h-3.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
-            {ev.date}
+            {fmtDate(ev.event_date)}
           </div>
-          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-            <svg className="w-3.5 h-3.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            {ev.time}
-          </div>
+          {timeStr && (
+            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <svg className="w-3.5 h-3.5 shrink-0 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              {timeStr}
+            </div>
+          )}
+          {ev.description && (
+            <p className="text-xs text-muted leading-relaxed line-clamp-2 pt-0.5">{ev.description}</p>
+          )}
         </div>
       </div>
     </Reveal>
   );
 }
 
-/* ─── Sermon card ─── */
-function SermonCard({ s, delay }: { s: typeof SERMONS[0]; delay: number }) {
+/* ─── Shimmer skeleton for loading state ─── */
+function EventSkeleton() {
+  return (
+    <div className="glass-card overflow-hidden h-full">
+      <div className="h-44 shimmer-loading"/>
+      <div className="p-4 space-y-2">
+        <div className="h-3 w-32 rounded-full shimmer-loading"/>
+        <div className="h-4 w-24 rounded-full shimmer-loading"/>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Countdown banner for featured events ─── */
+function CountdownBanner({ event }: { event: ChapelEvent }) {
+  const getTarget = () => {
+    const [y, m, d] = event.event_date.split('-').map(Number);
+    const [h = 0, min = 0] = (event.event_time ?? '').split(':').map(Number);
+    return new Date(y, m - 1, d, h, min, 0).getTime();
+  };
+
+  const calc = () => {
+    const diff = getTarget() - Date.now();
+    if (diff <= 0) return null;
+    return {
+      days:    Math.floor(diff / 86_400_000),
+      hours:   Math.floor((diff % 86_400_000) / 3_600_000),
+      minutes: Math.floor((diff % 3_600_000)  / 60_000),
+      seconds: Math.floor((diff % 60_000)     / 1_000),
+    };
+  };
+
+  const [time, setTime] = useState(calc);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const t = calc();
+      if (!t) { setIsLive(true); setTime(null); }
+      else setTime(t);
+    }, 1000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.event_date, event.event_time]);
+
+  if (!time && !isLive) return null;
+
+  const timeStr = fmtTime(event.event_time);
+
+  return (
+    <section className="py-6 px-5 sm:px-8 max-w-5xl mx-auto">
+      <Reveal>
+        <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8"
+             style={{
+               background: 'linear-gradient(135deg, rgba(80,0,160,0.18) 0%, rgba(139,0,255,0.14) 100%)',
+               backdropFilter: 'blur(32px) saturate(200%)',
+               WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+               border: '1.5px solid rgba(139,0,255,0.25)',
+               boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, 0 8px 32px rgba(139,0,255,0.12)',
+             }}>
+          {/* Ambient orb */}
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full blur-3xl pointer-events-none"
+               style={{ background: 'rgba(180,0,255,0.20)' }} aria-hidden/>
+
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black
+                              uppercase tracking-widest mb-2"
+                   style={{ background: 'rgba(139,0,255,0.15)', border: '1px solid rgba(139,0,255,0.25)', color: '#C084FC' }}>
+                {isLive ? '🎉 Happening Now' : '🔥 Upcoming Event'}
+              </div>
+              <h3 className="text-lg sm:text-xl font-black text-foreground tracking-tight leading-tight">
+                {event.title}
+              </h3>
+              <p className="text-xs text-muted mt-1">
+                {fmtDate(event.event_date)}{timeStr ? ` · ${timeStr}` : ''}
+              </p>
+            </div>
+            {isLive && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl font-bold text-sm
+                              text-white self-start sm:self-auto"
+                   style={{ background: 'linear-gradient(135deg, #7C3AED, #A855F7)' }}>
+                <span className="w-2 h-2 rounded-full bg-white animate-ping-slow"/>
+                Event is Live!
+              </div>
+            )}
+          </div>
+
+          {/* Countdown digits */}
+          {!isLive && time && (
+            <div className="grid grid-cols-4 gap-3 sm:gap-4">
+              {([
+                { label: 'DAYS',    value: time.days },
+                { label: 'HOURS',   value: time.hours },
+                { label: 'MIN',     value: time.minutes },
+                { label: 'SEC',     value: time.seconds },
+              ] as const).map(({ label, value }) => (
+                <div key={label} className="flex flex-col items-center gap-1">
+                  <div className="w-full rounded-2xl py-3 sm:py-4 flex items-center justify-center
+                                  text-2xl sm:text-4xl font-black text-white tabular-nums"
+                       style={{
+                         background: 'rgba(255,255,255,0.10)',
+                         border: '1px solid rgba(255,255,255,0.18)',
+                         boxShadow: '0 1px 0 rgba(255,255,255,0.20) inset',
+                       }}>
+                    {String(value).padStart(2, '0')}
+                  </div>
+                  <span className="text-[9px] font-black tracking-widest text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Reveal>
+    </section>
+  );
+}
+
+/* ─── Sermon card — live data ─── */
+function SermonCard({ s, delay }: { s: Sermon; delay: number }) {
+  const accentColor = SERMON_TAG_COLOR[s.tag] ?? '#7C3AED';
+  const hasAudio  = !!s.audio_url;
+  const hasVideo  = !!s.video_url;
+  const hasMedia  = hasAudio || hasVideo;
+  const actionHref = s.audio_url ?? s.video_url ?? '#';
+
+  const formattedDate = new Date(s.service_date + 'T00:00:00').toLocaleDateString('en-NG', {
+    month: 'short', year: 'numeric',
+  });
+
   return (
     <Reveal delay={delay}>
-      <div className="glass-card card-lift p-4 flex items-center gap-4 group cursor-pointer">
-        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center
-                        shrink-0 shadow-[0_4px_16px_rgba(139,0,255,0.40)] btn-liquid">
-          <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        </div>
+      <div className="glass-card card-lift p-4 flex items-center gap-4 group select-none">
+        {/* Thumbnail or play icon */}
+        {s.thumbnail_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={s.thumbnail_url}
+            alt={s.title}
+            className="w-12 h-12 rounded-2xl object-cover shrink-0 shadow-sm"
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0
+                          shadow-[0_4px_16px_rgba(139,0,255,0.35)] btn-liquid"
+               style={{ background: `linear-gradient(135deg, ${accentColor}, #C084FC)` }}>
+            <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+        )}
+
+        {/* Text */}
         <div className="flex-1 min-w-0">
           <p className="font-black text-sm text-foreground truncate leading-tight">{s.title}</p>
-          <p className="text-xs text-muted mt-0.5">{s.speaker} · {s.date} · {s.dur}</p>
+          <p className="text-xs text-muted mt-0.5 truncate">
+            {s.speaker} · {formattedDate}
+            {s.duration_minutes ? ` · ${s.duration_minutes} min` : ''}
+          </p>
+          {/* Audio / Video badge */}
+          {hasMedia && (
+            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold uppercase
+                             tracking-wide text-primary/70">
+              {hasAudio ? (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
+                  </svg>
+                  Audio
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                  Video
+                </>
+              )}
+            </span>
+          )}
         </div>
-        <button className="w-9 h-9 rounded-xl glass-purple flex items-center justify-center
-                           text-primary hover:bg-primary/20 transition-colors shrink-0"
-                aria-label="Download">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-        </button>
+
+        {/* Download / Watch button */}
+        {hasMedia && (
+          <a
+            href={actionHref}
+            download={hasAudio}
+            target={hasVideo ? '_blank' : undefined}
+            rel={hasVideo ? 'noopener noreferrer' : undefined}
+            className="w-9 h-9 rounded-xl glass-purple flex items-center justify-center
+                       text-primary hover:bg-primary/20 transition-colors shrink-0"
+            aria-label={hasAudio ? 'Download audio' : 'Watch video'}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {hasAudio ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+              </svg>
+            )}
+          </a>
+        )}
       </div>
     </Reveal>
+  );
+}
+
+/* ─── Sermon skeleton ─── */
+function SermonSkeleton() {
+  return (
+    <div className="glass-card p-4 flex items-center gap-4">
+      <div className="w-12 h-12 rounded-2xl shimmer-loading shrink-0"/>
+      <div className="flex-1 space-y-2">
+        <div className="h-3.5 w-3/4 rounded-full shimmer-loading"/>
+        <div className="h-2.5 w-1/2 rounded-full shimmer-loading"/>
+      </div>
+    </div>
   );
 }
 
@@ -142,6 +379,14 @@ export default function LandingPage() {
   const [navScrolled, setNavScrolled] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
+  // Events — live from API
+  const [events, setEvents] = useState<ChapelEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+
+  // Sermons — live from API
+  const [sermons, setSermons] = useState<Sermon[]>([]);
+  const [sermonsLoading, setSermonsLoading] = useState(true);
+
   useEffect(() => {
     setMounted(true);
     const h = new Date().getHours();
@@ -151,6 +396,26 @@ export default function LandingPage() {
   useEffect(() => {
     setNavScrolled(scrollY > 60);
   }, [scrollY]);
+
+  useEffect(() => {
+    getPublishedEvents()
+      .then(setEvents)
+      .catch(() => setEvents([]))
+      .finally(() => setEventsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    getPublishedSermons()
+      .then(setSermons)
+      .catch(() => setSermons([]))
+      .finally(() => setSermonsLoading(false));
+  }, []);
+
+  // First featured event that hasn't passed yet — drives countdown
+  const today = new Date().toISOString().slice(0, 10);
+  const featuredEvent = events.find(
+    (e) => e.is_featured && e.event_date >= today
+  ) ?? null;
 
   // Parallax: hero orbs drift opposite to scroll
   const parallaxY = scrollY * 0.35;
@@ -309,6 +574,11 @@ export default function LandingPage() {
       </section>
 
       {/* ════════════════════════════════════════════
+          COUNTDOWN BANNER — featured event only
+          ════════════════════════════════════════════ */}
+      {featuredEvent && <CountdownBanner event={featuredEvent} />}
+
+      {/* ════════════════════════════════════════════
           QUICK STATS STRIP
           ════════════════════════════════════════════ */}
       <section className="py-8 px-5 sm:px-8">
@@ -382,14 +652,17 @@ export default function LandingPage() {
         </Reveal>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {EVENTS.map((ev, i) => <EventCard key={ev.id} ev={ev} delay={i * 100}/>)}
+          {eventsLoading
+            ? [0, 1, 2].map((k) => <EventSkeleton key={k} />)
+            : events.length > 0
+              ? events.map((ev, i) => <EventCard key={ev.id} ev={ev} delay={i * 100} />)
+              : (
+                  <div className="col-span-full text-center py-12 text-muted text-sm">
+                    No upcoming events at this time. Check back soon.
+                  </div>
+                )
+          }
         </div>
-
-        <Reveal delay={200}>
-          <p className="mt-7 text-center text-xs text-muted">
-            Full event calendar with flyer uploads available in Phase 2.
-          </p>
-        </Reveal>
       </section>
 
       {/* ════════════════════════════════════════════
@@ -421,14 +694,17 @@ export default function LandingPage() {
           </Reveal>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            {SERMONS.map((s, i) => <SermonCard key={s.id} s={s} delay={i * 80}/>)}
+            {sermonsLoading
+              ? [0, 1, 2, 3].map((k) => <SermonSkeleton key={k} />)
+              : sermons.length > 0
+                ? sermons.map((s, i) => <SermonCard key={s.id} s={s} delay={i * 80} />)
+                : (
+                    <div className="col-span-2 text-center py-10 text-muted text-sm">
+                      Sermons will appear here once uploaded.
+                    </div>
+                  )
+            }
           </div>
-
-          <Reveal delay={300}>
-            <p className="mt-6 text-center text-xs text-muted">
-              Full audio/video archive with downloads in Phase 2.
-            </p>
-          </Reveal>
         </div>
       </section>
 

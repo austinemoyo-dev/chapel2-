@@ -63,6 +63,19 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
             d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
     </svg>
   ),
+  events: (
+    <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}
+            d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 12.75l1.5 1.5 3-3"/>
+    </svg>
+  ),
+  sermons: (
+    <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}
+            d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
+    </svg>
+  ),
 };
 
 const navItems: {
@@ -75,6 +88,8 @@ const navItems: {
   { href: '/admin/dashboard',  label: 'Dashboard',  iconKey: 'dashboard' },
   { href: '/admin/students',   label: 'Students',   iconKey: 'students',   permission: ADMIN_PERMISSIONS.VIEW_STUDENTS },
   { href: '/admin/services',   label: 'Services',   iconKey: 'services',   superadminOnly: true },
+  { href: '/admin/events',     label: 'Events',     iconKey: 'events',     superadminOnly: true },
+  { href: '/admin/sermons',    label: 'Sermons',    iconKey: 'sermons',    superadminOnly: true },
   { href: '/admin/users',      label: 'Users',      iconKey: 'users',      superadminOnly: true },
   { href: '/admin/duplicates', label: 'Duplicates', iconKey: 'duplicates', superadminOnly: true },
   { href: '/admin/reports',    label: 'Reports',    iconKey: 'reports',    permission: ADMIN_PERMISSIONS.VIEW_REPORTS },

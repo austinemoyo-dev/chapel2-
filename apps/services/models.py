@@ -231,3 +231,136 @@ class GeoFenceConfig(models.Model):
         if not self.pk:
             GeoFenceConfig.objects.all().delete()
         super().save(*args, **kwargs)
+
+
+# =============================================================================
+# CHAPEL EVENTS — Phase 2: landing-page event management
+# =============================================================================
+
+class EventTagChoices(models.TextChoices):
+    MIDWEEK      = 'midweek',      'Midweek'
+    SUNDAY       = 'sunday',       'Sunday'
+    SPECIAL      = 'special',      'Special'
+    CONFERENCE   = 'conference',   'Conference'
+    ANNOUNCEMENT = 'announcement', 'Announcement'
+
+
+class ChapelEvent(models.Model):
+    """
+    Upcoming events displayed on the public landing page.
+
+    Admins upload a flyer + writeup from the admin dashboard.
+    The landing page renders the flyer as a full-bleed card background
+    with a purple gradient overlay so any image blends into the brand.
+
+    is_featured=True activates the sitewide countdown banner for that event.
+    Only one event should be featured at a time (enforced in the admin UI).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    event_date = models.DateField()
+    event_time = models.TimeField(blank=True, null=True)
+
+    tag = models.CharField(
+        max_length=20,
+        choices=EventTagChoices.choices,
+        default=EventTagChoices.SPECIAL,
+    )
+    flyer = models.ImageField(
+        upload_to='event_flyers/%Y/%m/',
+        blank=True,
+        null=True,
+    )
+
+    is_published = models.BooleanField(default=True, db_index=True)
+    is_featured = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text='Activates the sitewide countdown banner on the landing page.',
+    )
+    sort_order = models.PositiveSmallIntegerField(
+        default=0,
+        help_text='Lower number = shown first.',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'chapel_events'
+        ordering = ['sort_order', 'event_date']
+        verbose_name = 'Chapel Event'
+        verbose_name_plural = 'Chapel Events'
+
+    def __str__(self):
+        return f'{self.title} ({self.event_date})'
+
+
+# =============================================================================
+# SERMONS — Phase 2: church sermon library
+# =============================================================================
+
+class SermonTagChoices(models.TextChoices):
+    MIDWEEK = 'midweek', 'Midweek'
+    SUNDAY  = 'sunday',  'Sunday'
+    SPECIAL = 'special', 'Special'
+
+
+class Sermon(models.Model):
+    """
+    Church sermon uploaded by the admin and displayed on the public landing page.
+
+    Either audio_file OR video_url should be provided (not both required).
+    Audio files are stored at /media/sermons/audio/ and served by nginx.
+    Thumbnails at /media/sermons/thumbs/ — optional cover image.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    title    = models.CharField(max_length=200)
+    speaker  = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default='')
+    service_date = models.DateField()
+    tag = models.CharField(
+        max_length=20,
+        choices=SermonTagChoices.choices,
+        default=SermonTagChoices.SUNDAY,
+    )
+
+    audio_file = models.FileField(
+        upload_to='sermons/audio/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Upload an audio file (mp3, wav, m4a). Use this OR video_url, not both.'
+    )
+    video_url = models.URLField(
+        blank=True,
+        null=True,
+        help_text='YouTube or Vimeo URL. Used when no audio file is uploaded.'
+    )
+    thumbnail = models.ImageField(
+        upload_to='sermons/thumbs/%Y/%m/',
+        blank=True,
+        null=True,
+    )
+    duration_minutes = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        help_text='Approximate duration in minutes'
+    )
+
+    is_published = models.BooleanField(default=True, db_index=True)
+    sort_order   = models.PositiveSmallIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'sermons'
+        ordering = ['-service_date']
+        verbose_name = 'Sermon'
+        verbose_name_plural = 'Sermons'
+
+    def __str__(self):
+        return f'{self.title} — {self.speaker} ({self.service_date})'

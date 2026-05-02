@@ -37,19 +37,18 @@ const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
   ]
 };
 
-/* ── Inline glass-section wrapper ─────────────────────────────────────────── */
 function Section({ label, children, zIndex = 10 }: { label: string; children: React.ReactNode; zIndex?: number }) {
   return (
-    <div className="space-y-3 relative" style={{ zIndex }}>
-      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/70 px-1">{label}</p>
-      <div className="rounded-[1.4rem] space-y-px relative"
+    <div className="space-y-3 relative group" style={{ zIndex }}>
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-primary/70 px-1 transition-colors group-hover:text-primary">{label}</p>
+      <div className="rounded-[1.4rem] space-y-px relative transition-all duration-300 ease-out shadow-sm hover:shadow-md hover:-translate-y-0.5"
         style={{
           zIndex,
-          background: 'rgba(255,255,255,0.50)',
-          backdropFilter: 'blur(24px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-          border: '1.5px solid rgba(255,255,255,0.58)',
-          boxShadow: '0 1px 0 rgba(255,255,255,0.72) inset, 0 4px 16px rgba(0,0,0,0.05)',
+          background: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(32px) saturate(200%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+          border: '1px solid rgba(255,255,255,0.9)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04), 0 1px 0 rgba(255,255,255,1) inset',
         }}>
         {children}
       </div>

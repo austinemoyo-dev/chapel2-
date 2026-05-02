@@ -8,6 +8,10 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from apps.services.event_urls import public_urlpatterns as event_public_urls
+from apps.services.event_urls import admin_urlpatterns as event_admin_urls
+from apps.services.sermon_urls import public_urlpatterns as sermon_public_urls
+from apps.services.sermon_urls import admin_urlpatterns as sermon_admin_urls
 
 urlpatterns = [
     # Django admin — kept enabled for Superadmin use.
@@ -75,6 +79,20 @@ urlpatterns = [
     # Audit Logs
     # GET /api/audit/logs/
     path('api/audit/', include('apps.audit.urls')),
+
+    # Chapel Events (Phase 2)
+    # GET /api/events/                    — public landing page
+    # GET/POST /api/admin/events/         — admin CRUD
+    # GET/PATCH/DELETE /api/admin/events/{id}/
+    path('api/events/', include((event_public_urls, 'events-public'))),
+    path('api/admin/events/', include((event_admin_urls, 'events-admin'))),
+
+    # Sermon Library (Phase 2)
+    # GET /api/sermons/                   — public landing page
+    # GET/POST /api/admin/sermons/        — admin CRUD
+    # GET/PATCH/DELETE /api/admin/sermons/{id}/
+    path('api/sermons/', include((sermon_public_urls, 'sermons-public'))),
+    path('api/admin/sermons/', include((sermon_admin_urls, 'sermons-admin'))),
 ]
 
 if settings.DEBUG:
