@@ -212,9 +212,10 @@ class FaceSampleUploadView(APIView):
     4. Run DeepFace analysis for quality validation
     5. Extract Facenet512 embedding vector
     6. Auto-reject with specific reasons if quality fails
-    7. Store approved sample with embedding
-    8. Update face_registered when 3+ samples approved
-    9. Activate student if face_registered=True and duplicate_flag=False
+    7. Reject immediately if face matches another student (400 Bad Request)
+    8. Store approved sample with embedding
+    9. Update face_registered when 3+ samples approved
+    10. Activate student if face_registered=True and duplicate_flag=False
     """
     permission_classes = [AllowAny]
     parser_classes = [MultiPartParser, FormParser]
@@ -282,6 +283,16 @@ class FaceSampleUploadView(APIView):
         # Process the face sample with DeepFace
         result = self._process_face_sample(sample_file, student)
 
+        # STRICT FACE UNIQUENESS CHECK
+        duplicate_match = None
+        if result['status'] == 'approved' and result.get('embedding'):
+            duplicate_match = self._check_face_duplicate(
+                result['embedding'], student, student.semester
+            )
+            if duplicate_match:
+                result['status'] = 'rejected'
+                result['rejection_reason'] = 'Face is already registered to another student.'
+
         # Create the face sample record
         face_sample = FaceSample(
             student=student,
@@ -293,45 +304,22 @@ class FaceSampleUploadView(APIView):
         )
         face_sample.save()
 
-        # Face-based duplicate detection — compare approved embedding against
-        # every other student's approved samples in the same semester.
-        face_duplicate_flag = False
-        if face_sample.status == 'approved' and face_sample.embedding_vector:
-            duplicate_match = self._check_face_duplicate(
-                face_sample.embedding_vector, student, student.semester
+        # Reject immediately if it's a duplicate of another student
+        if face_sample.status == 'rejected' and duplicate_match:
+            return Response(
+                {'error': face_sample.rejection_reason},
+                status=status.HTTP_400_BAD_REQUEST
             )
-            if duplicate_match:
-                face_duplicate_flag = True
-                student.duplicate_flag = True
-                student.duplicate_details = {
-                    **student.duplicate_details,
-                    'face_match': {
-                        'matched_student_id': str(duplicate_match['student_id']),
-                        'matched_student_name': duplicate_match['student_name'],
-                        'confidence': round(duplicate_match['confidence'], 4),
-                    },
-                }
-                student.is_active = False
-                student.save(update_fields=['duplicate_flag', 'duplicate_details', 'is_active'])
-                log_action(
-                    actor=None,
-                    action_type='DUPLICATE_FLAG_FACE',
-                    target_type='Student',
-                    target_id=student.id,
-                    new_value=student.duplicate_details['face_match'],
-                )
 
         # Check if student now has 3+ approved samples
         approved_count = student.face_samples.filter(status='approved').count()
         if approved_count >= 3 and not student.face_registered:
             student.face_registered = True
             student.save(update_fields=['face_registered'])
-            # Activate only if no duplicate flags (includes face match flag)
+            # Activate only if no duplicate flags (from initial registration)
             student.update_activation_status()
 
         message = result.get('rejection_reason') or f'Face sample approved. ({approved_count}/3 minimum required)'
-        if face_duplicate_flag:
-            message = 'Face already registered to another student. Your registration has been flagged for review.'
 
         return Response({
             'id': str(face_sample.id),
@@ -340,7 +328,7 @@ class FaceSampleUploadView(APIView):
             'approved_count': approved_count,
             'total_count': existing_count + 1,
             'face_registered': student.face_registered,
-            'duplicate_flagged': face_duplicate_flag,
+            'duplicate_flagged': student.duplicate_flag,
             'message': message,
         }, status=status.HTTP_201_CREATED)
 
