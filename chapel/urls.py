@@ -13,7 +13,7 @@ urlpatterns = [
     # Django admin — kept enabled for Superadmin use.
     # In production, restrict /admin/ to your IP address via nginx
     # (see nginx/nginx.conf for the allow/deny block).
-    path('admin/', admin.site.urls),
+    path('sysadmin/', admin.site.urls),
 
     # =========================================================================
     # API ENDPOINTS
