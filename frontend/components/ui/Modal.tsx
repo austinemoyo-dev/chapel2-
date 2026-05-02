@@ -4,17 +4,18 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title?: string;
+  className?: string;
   children: React.ReactNode;
 }
 
-export default function Modal({ open, onClose, title, children }: ModalProps) {
+export default function Modal({ open, onClose, title, className = '', children }: ModalProps) {
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-lg glass rounded-2xl p-6 animate-slide-up max-h-[90vh] overflow-y-auto"
+        className={`relative w-full max-w-lg glass rounded-2xl p-6 animate-slide-up max-h-[90vh] overflow-y-auto ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
