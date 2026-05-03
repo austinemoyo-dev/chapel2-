@@ -113,6 +113,25 @@ export function useCamera(options: CameraOptions = {}) {
     }
   }, [options.facingMode, options.width, options.height]);
 
+  // Auto-attach stream to video element when it becomes available
+  // This fixes the race condition where the video element mounts AFTER the stream is fetched
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (video && stream && video.srcObject !== stream) {
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        video.play().catch(e => console.error("Auto-attach play failed", e));
+      };
+      video.play().catch(e => console.error("Auto-attach initial play failed", e));
+    }
+  }); // Runs after every render to catch ref changes
+
   const stop = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
