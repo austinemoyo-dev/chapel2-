@@ -338,3 +338,109 @@ def check_face_duplicate(
             'confidence':   result['confidence'],
         }
     return None
+
+
+# =============================================================================
+# CACHED 1-TO-N MATCHING
+# Pre-builds a normalised embedding matrix from a QuerySet ONCE and stores it
+# in Django's cache. Subsequent scans within the same service session call
+# match() against the cached matrix — no DB query, no re-stacking numpy rows.
+# =============================================================================
+
+class _Match1toNCache:
+    """
+    Namespace object that holds build_pool() and match() so they share
+    the same threshold and normalisation logic as match_1_to_n().
+    """
+
+    @staticmethod
+    def build_pool(candidate_samples) -> dict:
+        """
+        Build the normalised embedding matrix for a service student pool.
+        Call this once and store the result in Django's cache.
+
+        Returns a dict safe for cache serialisation:
+          {
+            'matrix':      list[list[float]],   # shape (N, 512)
+            'student_ids':  list[str],           # UUID strings, same row order
+            'student_names': list[str],
+          }
+        """
+        student_ids   = []
+        student_names = []
+        rows = []
+
+        for sample in candidate_samples:
+            if not sample.embedding_vector:
+                continue
+            vec = np.array(sample.embedding_vector, dtype=np.float64)
+            n = np.linalg.norm(vec)
+            if n == 0:
+                continue
+            rows.append((vec / n).tolist())
+            student_ids.append(str(sample.student.id))
+            student_names.append(sample.student.full_name)
+
+        return {
+            'matrix':        rows,
+            'student_ids':   student_ids,
+            'student_names': student_names,
+        }
+
+    @staticmethod
+    def match(probe_embedding: list, pool: dict) -> dict:
+        """
+        Match a probe embedding against a pre-built cached pool.
+
+        Args:
+            probe_embedding: 512-dim ArcFace embedding.
+            pool:            Dict returned by build_pool().
+
+        Returns:
+            Same dict shape as match_1_to_n().
+        """
+        threshold = float(getattr(settings, 'INSIGHTFACE_MATCH_THRESHOLD', 0.40))
+
+        matrix = pool.get('matrix', [])
+        if not matrix:
+            return {
+                'matched': False, 'student_id': None,
+                'student_name': None, 'confidence': 0.0,
+                'message': 'Service pool is empty.',
+            }
+
+        probe = np.array(probe_embedding, dtype=np.float64)
+        probe_norm = np.linalg.norm(probe)
+        if probe_norm == 0:
+            return {
+                'matched': False, 'student_id': None,
+                'student_name': None, 'confidence': 0.0,
+                'message': 'Zero-norm probe embedding.',
+            }
+        probe = probe / probe_norm
+
+        mat          = np.array(matrix, dtype=np.float64)     # (N, 512)
+        similarities = mat @ probe                             # BLAS (N,)
+        best_idx     = int(np.argmax(similarities))
+        best_sim     = float(similarities[best_idx])
+        cosine_dist  = 1.0 - best_sim
+
+        if cosine_dist < threshold:
+            return {
+                'matched':      True,
+                'student_id':   pool['student_ids'][best_idx],
+                'student_name': pool['student_names'][best_idx],
+                'confidence':   best_sim,
+                'message':      f'Matched: {pool["student_names"][best_idx]} (sim {best_sim:.4f})',
+            }
+
+        return {
+            'matched':      False,
+            'student_id':   None,
+            'student_name': None,
+            'confidence':   best_sim,
+            'message':      'No matching face found in this service pool.',
+        }
+
+
+match_1_to_n_cached = _Match1toNCache()

@@ -198,8 +198,9 @@ class ServiceCancelView(APIView):
 
 class GeoFenceView(APIView):
     """
-    GET /api/geo-fence/ — View current geo-fence config
-    PATCH /api/geo-fence/ — Update geo-fence config (Superadmin only)
+    GET    /api/geo-fence/ — View current geo-fence config
+    PATCH  /api/geo-fence/ — Update geo-fence config (Superadmin only)
+    DELETE /api/geo-fence/ — Reset to unconfigured 0,0 (blocks attendance until reconfigured)
     """
     def get_permissions(self):
         if self.request.method == 'GET':
@@ -233,4 +234,33 @@ class GeoFenceView(APIView):
         return Response({
             'message': 'Geo-fence configuration updated.',
             'config': GeoFenceSerializer(config).data,
+        })
+
+    @transaction.atomic
+    def delete(self, request):
+        """
+        Reset geo-fence to unconfigured (latitude=0, longitude=0).
+        Attendance marking will be blocked until a new location is set.
+        """
+        config = GeoFenceConfig.get_config()
+        old_data = GeoFenceSerializer(config).data
+
+        config.latitude      = 0.0
+        config.longitude     = 0.0
+        config.radius_meters = 200
+        config.updated_by    = request.user
+        config.save()
+
+        log_action(
+            actor=request.user,
+            action_type='GEOFENCE_RESET',
+            target_type='GeoFenceConfig',
+            target_id=config.id,
+            previous_value=old_data,
+            new_value={'latitude': 0, 'longitude': 0, 'radius_meters': 200},
+            reason_note='Geo-fence reset by Superadmin — attendance marking is blocked until reconfigured.',
+        )
+
+        return Response({
+            'message': 'Geo-fence reset. Attendance marking is now blocked until you set a new chapel location.',
         })

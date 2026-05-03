@@ -139,4 +139,8 @@ export const serviceService = {
   /** PATCH /api/geo-fence/ — Update geo-fence config */
   updateGeoFence: (data: Partial<Omit<GeoFenceConfig, 'id' | 'updated_at'>>) =>
     api.patch<{ message: string; config: GeoFenceConfig }>('/api/geo-fence/', data),
+
+  /** DELETE /api/geo-fence/ — Reset geo-fence to unconfigured (0, 0) */
+  resetGeoFence: () =>
+    api.delete<{ message: string }>('/api/geo-fence/'),
 };

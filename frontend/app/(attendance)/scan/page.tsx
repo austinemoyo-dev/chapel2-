@@ -118,9 +118,17 @@ export default function ScanPage() {
   useEffect(() => {
     serviceService.listServices({ is_cancelled: 'false' }).then((data) => {
       const list = Array.isArray(data) ? data : data.results || [];
-      // Show services with open windows
       const now = new Date().toISOString();
-      const open = list.filter((s) => s.window_open_time <= now && s.window_close_time >= now);
+      // Include a service if EITHER the sign-in window OR a dedicated sign-out
+      // window is currently open. This prevents "no active service" when the
+      // sign-in window closes but sign-out marking is still required.
+      const open = list.filter((s) => {
+        const signInOpen  = s.window_open_time <= now && s.window_close_time >= now;
+        const signOutOpen = s.signout_open_time && s.signout_close_time
+          ? s.signout_open_time <= now && s.signout_close_time >= now
+          : false;
+        return signInOpen || signOutOpen;
+      });
       
       setServicesLoaded(true);
       if (open.length > 0) {

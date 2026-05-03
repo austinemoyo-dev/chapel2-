@@ -27,9 +27,11 @@ export default function SettingsPage() {
   const [longitude, setLongitude] = useState(0);
   const [radius, setRadius] = useState(200);
   const [regOpen, setRegOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [resetting, setResetting]     = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [hasChanges, setHasChanges]   = useState(false);
 
   // Semesters state
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -84,6 +86,27 @@ export default function SettingsPage() {
       addToast(err.message || 'Failed to update geo-fence', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetGeoFence = async () => {
+    setResetting(true);
+    try {
+      await serviceService.resetGeoFence();
+      setLatitude(0);
+      setLongitude(0);
+      setRadius(200);
+      setOriginal({ lat: 0, lng: 0, radius: 200 });
+      setHasChanges(false);
+      setConfirmReset(false);
+      addToast(
+        'Geo-fence reset. Attendance marking is blocked until you set a new location.',
+        'warning',
+      );
+    } catch (err: any) {
+      addToast(err.message || 'Failed to reset geo-fence', 'error');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -256,7 +279,40 @@ export default function SettingsPage() {
           onRadiusChange={setRadius}
         />
 
-        <div className="flex justify-end mt-4">
+        <div className="flex items-center justify-between mt-4 gap-3 flex-wrap">
+          {/* Reset / danger side */}
+          {confirmReset ? (
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-danger font-semibold">
+                This blocks all attendance marking. Confirm?
+              </p>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={resetting}
+                onClick={resetGeoFence}
+              >
+                Yes, Reset
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmReset(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setConfirmReset(true)}
+            >
+              🗑️ Reset Geo-Fence
+            </Button>
+          )}
+
+          {/* Save side */}
           <Button
             onClick={saveGeoFence}
             loading={saving}

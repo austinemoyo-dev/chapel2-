@@ -158,6 +158,13 @@ def match_face_1_to_n(face_embedding, service_id):
     Pool is scoped to the student's assigned service group (S1/S2/S3),
     or the entire semester for special (all-student) services.
 
+    The pre-built normalised embedding matrix is cached in Django's in-process
+    memory cache for 5 minutes per service. This eliminates a repeated DB query
+    + NumPy stack rebuild on every scan during a live service session. The cache
+    invalidates automatically when:
+      - 5 minutes elapse (short TTL covers new registrations being activated)
+      - The process restarts (gunicorn worker recycle)
+
     Args:
         face_embedding: 512-dim list — ArcFace embedding from the live frame.
         service_id:     UUID — the active service instance.
@@ -165,9 +172,10 @@ def match_face_1_to_n(face_embedding, service_id):
     Returns:
         dict with keys: matched, student_id, student_name, confidence, message.
     """
+    from django.core.cache import cache
     from apps.services.models import Service
     from apps.students.models import FaceSample
-    from apps.core.face import match_1_to_n
+    from apps.core.face import match_1_to_n_cached
 
     try:
         service = Service.objects.get(id=service_id)
@@ -178,24 +186,33 @@ def match_face_1_to_n(face_embedding, service_id):
             'message': 'Service not found.',
         }
 
-    base_filter = dict(
-        semester=service.semester,
-        status='approved',
-        student__is_active=True,
-    )
-    if service.service_group != 'all':
-        base_filter['student__service_group'] = service.service_group
+    cache_key = f'face_pool_{service_id}'
+    pool = cache.get(cache_key)
 
-    samples = FaceSample.objects.filter(**base_filter).select_related('student')
+    if pool is None:
+        base_filter = dict(
+            semester=service.semester,
+            status='approved',
+            student__is_active=True,
+        )
+        if service.service_group != 'all':
+            base_filter['student__service_group'] = service.service_group
 
-    if not samples.exists():
-        return {
-            'matched': False, 'student_id': None,
-            'student_name': None, 'confidence': 0.0,
-            'message': 'No face embeddings available for this service pool.',
-        }
+        samples = FaceSample.objects.filter(**base_filter).select_related('student')
 
-    return match_1_to_n(face_embedding, samples)
+        if not samples.exists():
+            return {
+                'matched': False, 'student_id': None,
+                'student_name': None, 'confidence': 0.0,
+                'message': 'No face embeddings available for this service pool.',
+            }
+
+        # Build and cache the normalised matrix (300 s = 5 min TTL)
+        pool = match_1_to_n_cached.build_pool(samples)
+        cache.set(cache_key, pool, timeout=300)
+        logger.debug('Built embedding cache for service %s (%d vectors)', service_id, len(pool['student_ids']))
+
+    return match_1_to_n_cached.match(face_embedding, pool)
 
 
 def calculate_attendance_percentage(student, semester_id):

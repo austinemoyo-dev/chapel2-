@@ -329,6 +329,82 @@ sudo certbot renew --dry-run
 
 ---
 
+## Full Registration Reset
+
+Use this when you need to wipe all student data and start fresh — for example
+before the first registration period opens, or when switching face-recognition
+models (embeddings from different models are incompatible).
+
+**This deletes everything: students, face samples, attendance records, profile
+photos, and face image files. There is no undo.**
+
+```bash
+# Step 1 — Close registration first (prevents new submissions mid-wipe)
+docker compose exec backend python manage.py shell -c "
+from apps.services.models import Semester
+s = Semester.objects.filter(is_active=True).first()
+if s:
+    s.registration_open = False
+    s.save()
+    print('Registration closed.')
+else:
+    print('No active semester — nothing to close.')
+"
+
+# Step 2 — Run the full wipe
+docker compose exec backend python manage.py shell -c "
+import shutil, os
+from django.conf import settings
+from apps.students.models import Student, FaceSample
+from apps.attendance.models import AttendanceRecord
+
+# Delete face sample image files from disk
+face_dir = os.path.join(settings.MEDIA_ROOT, 'face_samples')
+if os.path.exists(face_dir):
+    shutil.rmtree(face_dir)
+    os.makedirs(face_dir)
+    print('Face sample files deleted.')
+
+# Delete profile photo files from disk
+photo_dir = os.path.join(settings.MEDIA_ROOT, 'profile_photos')
+if os.path.exists(photo_dir):
+    shutil.rmtree(photo_dir)
+    os.makedirs(photo_dir)
+    print('Profile photo files deleted.')
+
+# Delete all database records
+# Student.delete() cascades to FaceSample and AttendanceRecord via FK
+deleted, breakdown = Student.objects.all().delete()
+print(f'Deleted {deleted} records: {breakdown}')
+print('Full reset complete.')
+"
+
+# Step 3 — Verify the reset
+docker compose exec backend python manage.py shell -c "
+from apps.students.models import Student, FaceSample
+from apps.attendance.models import AttendanceRecord
+print('Students remaining:          ', Student.objects.count())
+print('Face samples remaining:      ', FaceSample.objects.count())
+print('Attendance records remaining:', AttendanceRecord.objects.count())
+"
+
+# Step 4 — Open registration when you are ready
+# Go to Admin Dashboard → Settings → Open Registration
+# OR run:
+docker compose exec backend python manage.py shell -c "
+from apps.services.models import Semester
+s = Semester.objects.filter(is_active=True).first()
+if s:
+    s.registration_open = True
+    s.save()
+    print(f'Registration opened: {s.name}')
+else:
+    print('No active semester. Create one first in Settings → Semesters.')
+"
+```
+
+---
+
 ## Troubleshooting
 
 | Problem | Fix |
