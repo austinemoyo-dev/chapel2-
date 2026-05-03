@@ -130,8 +130,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
-    const interval = setInterval(() => { void load(); }, 30000);
-    return () => clearInterval(interval);
+    // Full stats refresh every 30 seconds
+    const statsInterval = setInterval(() => { void load(); }, 30000);
+
+    // Dedicated 5-second fast poll for the live attendance feed only
+    const feedInterval = setInterval(async () => {
+      const now = new Date().toISOString();
+      try {
+        const servicesData = await serviceService.listServices({ is_cancelled: 'false' });
+        const all = Array.isArray(servicesData) ? servicesData : (servicesData as any).results || [];
+        const live = all.filter(
+          (s: Service) => s.window_open_time <= now && s.window_close_time >= now && !s.is_cancelled,
+        );
+        if (live.length > 0) {
+          const attendanceData = await adminService.getServiceAttendance(live[0].id);
+          // Sort most recent first, keep top 5
+          const sorted = (attendanceData.results || [])
+            .sort((a: any, b: any) =>
+              new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime(),
+            )
+            .slice(0, 5);
+          setRecentSignIns(sorted);
+          setLiveServices(live);
+        } else {
+          setRecentSignIns([]);
+          setLiveServices([]);
+        }
+      } catch {
+        // Silent — don't error the whole dashboard on a feed poll failure
+      }
+    }, 5000);
+
+    return () => {
+      clearInterval(statsInterval);
+      clearInterval(feedInterval);
+    };
   }, [load]);
 
   if (loading) {
@@ -291,30 +324,43 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {liveServices.length > 0 && recentSignIns.length > 0 && (
+        {liveServices.length > 0 && (
           <div className="mt-5 pt-5 border-t border-border">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <p className="text-xs font-bold text-muted uppercase tracking-wider">Live Audit Feed</p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <p className="text-xs font-bold text-muted uppercase tracking-wider">Live Audit Feed</p>
+              </div>
+              <span className="text-[10px] text-muted/50">updates every 5s</span>
             </div>
-            <div className="space-y-2">
-              {recentSignIns.map((record) => (
-                <div key={record.id} className="flex items-center justify-between text-sm p-3 bg-surface-2 rounded-xl">
-                  <div>
-                    <p className="font-semibold text-foreground">{record.student_name}</p>
-                    <p className="text-xs text-muted">{record.student_matric || record.student}</p>
+
+            {recentSignIns.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center bg-surface-2 rounded-xl">
+                <span className="text-2xl mb-2">⏳</span>
+                <p className="text-sm font-semibold text-foreground/60">Waiting for first sign-in</p>
+                <p className="text-xs text-muted mt-1">Protocol members can start scanning now</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {recentSignIns.map((record) => (
+                  <div key={record.id} className="flex items-center justify-between text-sm p-3 bg-surface-2 rounded-xl">
+                    <div>
+                      <p className="font-semibold text-foreground">{record.student_name}</p>
+                      <p className="text-xs text-muted">{record.student_matric || record.student}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-medium text-success">
+                        {new Date(record.signed_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </p>
+                      <Badge variant={record.is_valid ? 'success' : 'warning'} className="mt-1">
+                        {record.is_valid ? 'Valid' : 'Pending'}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-medium text-success">
-                      In: {new Date(record.signed_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </p>
-                    <Badge variant={record.is_valid ? 'success' : 'warning'} className="mt-1">
-                      {record.is_valid ? 'Valid' : 'Pending'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-3 text-center">
               <Link href={`/monitor/live/${liveServices[0].id}`} className="text-xs text-primary font-semibold hover:underline">
                 View Full Monitor →

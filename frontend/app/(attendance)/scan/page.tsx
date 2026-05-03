@@ -131,10 +131,14 @@ export default function ScanPage() {
       });
       
       setServicesLoaded(true);
-      if (open.length > 0) {
-        // Auto-select the first open service
-        setServices([open[0]]);
+      if (open.length === 1) {
+        // Only one service active — auto-select it immediately
+        setServices(open);
         void handleSelectService(open[0]);
+      } else if (open.length > 1) {
+        // Multiple services active — show all and require manual selection.
+        // Protocol members must choose which service they are assigned to.
+        setServices(open);
       } else {
         setServices([]);
       }
@@ -426,32 +430,55 @@ export default function ScanPage() {
           </div>
         )}
 
-        <h2 className="text-sm font-medium text-muted">Active Service</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-muted">
+            {services.length > 1 ? 'Multiple Active Services — Select Yours' : 'Active Service'}
+          </h2>
+          {services.length > 1 && (
+            <span className="text-xs bg-warning/15 text-warning px-2 py-0.5 rounded-full font-semibold">
+              {services.length} active
+            </span>
+          )}
+        </div>
         {!servicesLoaded ? (
           <div className="text-center py-8 text-muted"><Spinner /><p className="mt-2 text-sm">Detecting active service...</p></div>
         ) : services.length === 0 ? (
           <div className="text-center py-8 text-muted"><p className="text-sm">No active service at the moment. Ask the Superadmin to open a service window.</p></div>
         ) : (
           <div className="space-y-2">
-            {services.map((s) => (
-              <div
-                key={s.id}
-                className="w-full text-left p-4 rounded-xl bg-surface-2 border border-border"
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <p className="font-medium">{s.name || `${s.service_type} ${s.service_group}`}</p>
-                    <p className="text-xs text-muted">{s.scheduled_date}</p>
+            {services.map((s) => {
+              const signInOpen  = s.window_open_time <= new Date().toISOString() && s.window_close_time >= new Date().toISOString();
+              const signOutOpen = s.signout_open_time && s.signout_close_time
+                ? s.signout_open_time <= new Date().toISOString() && s.signout_close_time >= new Date().toISOString()
+                : false;
+              const windowLabel = signInOpen && signOutOpen
+                ? 'Sign-In & Sign-Out'
+                : signOutOpen
+                ? 'Sign-Out Only'
+                : 'Sign-In';
+
+              return (
+                <div
+                  key={s.id}
+                  className={`w-full text-left p-4 rounded-xl bg-surface-2 border transition-colors ${
+                    services.length > 1 ? 'border-warning/40 hover:border-primary/50' : 'border-border'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <p className="font-semibold">{s.name || `${s.service_type} ${s.service_group}`}</p>
+                      <p className="text-xs text-muted">{s.scheduled_date} · Group {s.service_group}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="success">{windowLabel}</Badge>
+                    </div>
                   </div>
-                  <Badge variant={s.is_window_open ? 'success' : 'info'}>
-                    {s.is_window_open ? 'Open' : s.service_group}
-                  </Badge>
+                  <Button className="w-full" onClick={() => void handleSelectService(s)}>
+                    {services.length > 1 ? `Select ${s.service_group} — ${windowLabel}` : 'Start Scanning'}
+                  </Button>
                 </div>
-                <Button className="w-full" onClick={() => void handleSelectService(s)}>
-                  Resume Scanning
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
