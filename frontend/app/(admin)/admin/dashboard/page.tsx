@@ -102,9 +102,13 @@ export default function DashboardPage() {
     const registrationOpen  = statusRes.status   === 'fulfilled' ? statusRes.value.registration_open : false;
 
     const now = new Date().toISOString();
-    const live = allServices.filter(
-      (s: Service) => s.window_open_time <= now && s.window_close_time >= now && !s.is_cancelled
-    );
+    const live = allServices.filter((s: Service) => {
+      const signInOpen  = s.window_open_time <= now && s.window_close_time >= now;
+      const signOutOpen = s.signout_open_time && s.signout_close_time
+        ? (s.signout_open_time as string) <= now && (s.signout_close_time as string) >= now
+        : false;
+      return !s.is_cancelled && (signInOpen || signOutOpen);
+    });
     const upcoming = allServices.filter(
       (s: Service) => s.window_open_time > now && !s.is_cancelled
     ).slice(0, 3);
@@ -115,8 +119,22 @@ export default function DashboardPage() {
     
     if (live.length > 0) {
       try {
-        const attendanceData = await adminService.getServiceAttendance(live[0].id);
-        setRecentSignIns(attendanceData.results?.slice(0, 5) || []);
+        const feeds = await Promise.allSettled(
+          live.map((s: Service) => adminService.getServiceAttendance(s.id)),
+        );
+        const allRecords: any[] = [];
+        feeds.forEach((res) => {
+          if (res.status === 'fulfilled') {
+            const records = Array.isArray(res.value)
+              ? res.value
+              : (res.value as any).results || [];
+            allRecords.push(...records);
+          }
+        });
+        const sorted = allRecords
+          .sort((a, b) => new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime())
+          .slice(0, 8);
+        setRecentSignIns(sorted);
       } catch (err) {
         console.error('Failed to fetch recent sign-ins', err);
       }
@@ -133,23 +151,40 @@ export default function DashboardPage() {
     // Full stats refresh every 30 seconds
     const statsInterval = setInterval(() => { void load(); }, 30000);
 
-    // Dedicated 5-second fast poll for the live attendance feed only
+    // Dedicated 3-second fast poll for the live attendance feed only
     const feedInterval = setInterval(async () => {
       const now = new Date().toISOString();
       try {
         const servicesData = await serviceService.listServices({ is_cancelled: 'false' });
         const all = Array.isArray(servicesData) ? servicesData : (servicesData as any).results || [];
-        const live = all.filter(
-          (s: Service) => s.window_open_time <= now && s.window_close_time >= now && !s.is_cancelled,
-        );
+        // Include services where either the main sign-in window OR sign-out window is active
+        const live = all.filter((s: Service) => {
+          const signInOpen  = s.window_open_time <= now && s.window_close_time >= now;
+          const signOutOpen = s.signout_open_time && s.signout_close_time
+            ? s.signout_open_time <= now && s.signout_close_time >= now
+            : false;
+          return !s.is_cancelled && (signInOpen || signOutOpen);
+        });
+
         if (live.length > 0) {
-          const attendanceData = await adminService.getServiceAttendance(live[0].id);
-          // Sort most recent first, keep top 5
-          const sorted = (attendanceData.results || [])
-            .sort((a: any, b: any) =>
-              new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime(),
-            )
-            .slice(0, 5);
+          // Fetch attendance for all live services and merge into one feed
+          const feeds = await Promise.allSettled(
+            live.map((s: Service) => adminService.getServiceAttendance(s.id)),
+          );
+          const allRecords: any[] = [];
+          feeds.forEach((res) => {
+            if (res.status === 'fulfilled') {
+              // Handle both paginated {results:[]} and plain array responses
+              const records = Array.isArray(res.value)
+                ? res.value
+                : (res.value as any).results || [];
+              allRecords.push(...records);
+            }
+          });
+          // Sort newest sign-in first, keep top 8
+          const sorted = allRecords
+            .sort((a, b) => new Date(b.signed_in_at).getTime() - new Date(a.signed_in_at).getTime())
+            .slice(0, 8);
           setRecentSignIns(sorted);
           setLiveServices(live);
         } else {
@@ -157,9 +192,9 @@ export default function DashboardPage() {
           setLiveServices([]);
         }
       } catch {
-        // Silent — don't error the whole dashboard on a feed poll failure
+        // Silent — don't surface feed poll failures on the main dashboard
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       clearInterval(statsInterval);

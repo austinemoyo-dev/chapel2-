@@ -549,7 +549,7 @@ class AttendanceServiceListView(generics.ListAPIView):
         service_id = self.kwargs['service_id']
         return AttendanceRecord.objects.filter(
             service_id=service_id
-        ).select_related('student', 'service', 'protocol_member')
+        ).select_related('student', 'service', 'protocol_member').order_by('-signed_in_at')
 
 
 class AttendanceEditView(APIView):

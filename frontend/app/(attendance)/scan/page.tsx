@@ -309,6 +309,7 @@ export default function ScanPage() {
       });
       setScanning(false);
       setPhase('result');
+      scheduleAutoReset('offline_unavailable');
       return;
     }
 
@@ -317,6 +318,7 @@ export default function ScanPage() {
       setResult({ type: 'failed', name: '', message: 'Camera frame was not captured. Please retry.' });
       setScanning(false);
       setPhase('result');
+      scheduleAutoReset('failed');
       return;
     }
 
@@ -324,6 +326,7 @@ export default function ScanPage() {
       setResult({ type: 'failed', name: '', message: 'GPS and device identity are required before scanning.' });
       setScanning(false);
       setPhase('result');
+      scheduleAutoReset('failed');
       return;
     }
     const gpsLat = parseFloat(geo.latitude.toFixed(7));
@@ -339,30 +342,44 @@ export default function ScanPage() {
         gps_lng: gpsLng,
       });
 
-      setResult({
+      const r: typeof result = {
         type: 'success',
         name: response.student_name || '',
         message: response.message,
-      });
+      };
+      setResult(r);
+      setPhase('result');
+      scheduleAutoReset('success');
     } catch (err) {
-      if (err instanceof ApiError) {
-        setResult({
-          type: err.status === 409 ? 'already_marked' : 'failed',
-          name: (err.data.student_name as string) || '',
-          message: err.message,
-        });
-      } else {
-        setResult({ type: 'failed', name: '', message: 'Scan failed. Please retry.' });
-      }
+      const type: ResultType = err instanceof ApiError && err.status === 409
+        ? 'already_marked'
+        : 'failed';
+      setResult({
+        type,
+        name: err instanceof ApiError ? ((err.data.student_name as string) || '') : '',
+        message: err instanceof ApiError ? err.message : 'Scan failed. Please retry.',
+      });
+      setPhase('result');
+      scheduleAutoReset(type);
     } finally {
       setScanning(false);
-      setPhase('result');
     }
   }
 
   function resetScan() {
     setResult(null);
     setPhase('ready');
+    holdStartRef.current = null;
+  }
+
+  // Auto-reset delays:
+  //   2000ms on success — protocol member reads + confirms the student name
+  //   1500ms on warning/error — sees the rejection reason before next scan
+  function scheduleAutoReset(resultType: ResultType) {
+    const delay = resultType === 'success' ? 2000 : 1500;
+    setTimeout(() => {
+      if (phaseRef.current === 'result') resetScan();
+    }, delay);
   }
 
   const gpsReady = geo.latitude !== null && geo.longitude !== null && !geo.permissionDenied;
@@ -585,26 +602,49 @@ export default function ScanPage() {
           </div>
         )}
 
+        {/* Auto-dismiss result overlay — no button press needed */}
         {phase === 'result' && result && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-20">
-            <div className="bg-surface border border-border rounded-2xl p-8 text-center max-w-xs mx-4 animate-slide-up">
-              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
-                result.type === 'success' ? 'bg-success-muted text-success' :
-                  result.type === 'already_marked' || result.type === 'offline_unavailable' ? 'bg-warning-muted text-warning' :
-                    'bg-danger-muted text-danger'
-              }`}>
-                <span className="text-2xl font-bold">
-                  {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
-                </span>
-              </div>
-              <h3 className="text-lg font-bold">
-                {result.type === 'success' ? result.name : result.type === 'already_marked' ? 'Already Marked' : 'Not Accepted'}
-              </h3>
-              <p className="text-sm text-muted mt-1">{result.message || result.name}</p>
-              <div className="mt-6">
-                <Button onClick={resetScan} size="lg" className="w-full">Continue Scanning</Button>
-              </div>
+          <div
+            key={`${result.type}-${result.name}`}
+            className={`absolute inset-0 flex flex-col items-center justify-center z-20
+                        ${result.type === 'success'
+                          ? 'bg-success/90'
+                          : result.type === 'already_marked' || result.type === 'offline_unavailable'
+                          ? 'bg-warning/90'
+                          : 'bg-danger/90'}`}
+          >
+            {/* Drain bar at top — shows time remaining before auto-advance */}
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-white/20 overflow-hidden">
+              <div
+                className={`h-full bg-white/80 ${
+                  result.type === 'success' ? 'result-bar-success' : 'result-bar-error'
+                }`}
+              />
             </div>
+
+            {/* Icon */}
+            <div className="text-8xl font-black text-white mb-4 drop-shadow-lg select-none">
+              {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
+            </div>
+
+            {/* Student name (large, protocol member reads it aloud) */}
+            <h2 className="text-2xl font-black text-white text-center px-6 drop-shadow">
+              {result.type === 'success'
+                ? result.name
+                : result.type === 'already_marked'
+                ? 'Already Marked'
+                : 'Not Accepted'}
+            </h2>
+            <p className="text-white/80 text-sm mt-2 text-center px-8">
+              {result.message}
+            </p>
+
+            {/* Tap anywhere to skip wait */}
+            <button
+              onClick={resetScan}
+              className="absolute inset-0 w-full h-full opacity-0"
+              aria-label="Skip and continue scanning"
+            />
           </div>
         )}
       </div>
@@ -628,9 +668,11 @@ export default function ScanPage() {
           ) : (
             <div className="bg-surface/90 backdrop-blur border border-border rounded-2xl p-5 w-full text-center shadow-lg">
               <p className="text-sm font-bold text-foreground mb-1">
-                {mode === 'sign_in' ? 'Sign-In Scanner' : 'Sign-Out Scanner'}
+                {mode === 'sign_in' ? '● Sign-In Scanner Active' : '● Sign-Out Scanner Active'}
               </p>
-              <p className="text-xs text-muted">Align face in the oval and hold still to auto-scan.</p>
+              <p className="text-xs text-muted">
+                Face oval → liveness check → auto-scan → result (0.3s) → next person
+              </p>
             </div>
           )}
         </div>

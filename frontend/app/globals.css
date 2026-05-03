@@ -103,6 +103,15 @@ h1, h2, h3, h4, h5, h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Auto-dismiss progress bar for scanner result overlay */
+@keyframes result-bar-drain {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+/* 2s for success (time to read + confirm name), 1.5s for errors */
+.result-bar-success { animation: result-bar-drain 2s linear forwards; }
+.result-bar-error   { animation: result-bar-drain 1.5s linear forwards; }
+
 @keyframes slide-down-fade {
   from { opacity: 0; transform: translateY(-12px); }
   to   { opacity: 1; transform: translateY(0); }
