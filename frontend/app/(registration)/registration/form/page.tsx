@@ -197,7 +197,9 @@ function RegistrationFormContent() {
         addToast('Details saved! Now complete face capture.', 'success');
       }
 
-      router.push(`/registration/face-capture?student=${result.id}&semester=${semesterId}`);
+      // Hard redirect to force a clean camera initialization on mobile browsers.
+      // Next.js client-side routing often breaks getUserMedia on iOS/Android.
+      window.location.href = `/registration/face-capture?student=${result.id}&semester=${semesterId}`;
     } catch (err) {
       if (err instanceof ApiError && err.data && typeof err.data === 'object') {
         const fieldErrors: Record<string, string> = {};
