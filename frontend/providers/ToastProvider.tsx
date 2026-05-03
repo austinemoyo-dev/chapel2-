@@ -40,12 +40,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
       {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`px-4 py-3 rounded-xl shadow-lg text-sm font-semibold border
-                        cursor-pointer transition-all duration-300 animate-slide-up-fade ${
+                        cursor-pointer transition-all duration-300 animate-slide-up-fade pointer-events-auto ${
               toast.type === 'success' ? 'bg-success-muted  text-success  border-success/25' :
               toast.type === 'error'   ? 'bg-danger-muted   text-danger   border-danger/25'  :
               toast.type === 'warning' ? 'bg-warning-muted  text-warning  border-warning/25' :

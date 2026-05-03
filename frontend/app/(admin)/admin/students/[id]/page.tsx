@@ -211,12 +211,6 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
               {hasRole(ROLES.SUPERADMIN) && student.student_type === 'new' && (
                 <Button variant="secondary" size="sm" onClick={() => void handleMatricLink()}>Matric Link</Button>
               )}
-              {hasRole(ROLES.SUPERADMIN) && (
-                <Button variant="secondary" size="sm" onClick={() => setShowBackdate(true)}>Backdate</Button>
-              )}
-              {hasRole(ROLES.SUPERADMIN) && (
-                <Button variant="danger" size="sm" onClick={() => setShowDelete(true)}>Delete</Button>
-              )}
             </div>
           </div>
         </div>
@@ -311,11 +305,6 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-4xl font-bold text-primary mt-1">{student.service_group || 'None'}</p>
               <p className="text-xs text-muted mt-2">Applies to both midweek and Sunday services.</p>
             </div>
-            {canEdit && (
-              <Button variant="secondary" className="w-full mt-4" onClick={() => setShowEdit(true)}>
-                Change Service Group
-              </Button>
-            )}
           </Card>
 
           <Card variant="glass">
@@ -328,6 +317,38 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </aside>
       </div>
+
+      {/* Advanced Operations / Danger Zone */}
+      {(hasRole(ROLES.SUPERADMIN) || canEdit) && (
+        <Card className="mt-8 border-danger/20 bg-danger/5">
+          <h2 className="text-lg font-bold text-danger mb-2 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Advanced Operations
+          </h2>
+          <p className="text-sm text-danger/80 mb-5">
+            These actions can modify critical records or permanently delete data.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
+                Change Service Group
+              </Button>
+            )}
+            {hasRole(ROLES.SUPERADMIN) && (
+              <Button variant="outline" size="sm" onClick={() => setShowBackdate(true)}>
+                Backdate Attendance
+              </Button>
+            )}
+            {hasRole(ROLES.SUPERADMIN) && (
+              <Button variant="danger" size="sm" onClick={() => setShowDelete(true)}>
+                Delete Student Profile
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Student" className="glass-panel backdrop-blur-md">
         <div className="space-y-4">

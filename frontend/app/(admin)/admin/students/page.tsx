@@ -67,11 +67,25 @@ export default function StudentsPage() {
     gender: '',
   });
 
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [facultyFilter, setFacultyFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
   const canAdd = hasRole(ROLES.SUPERADMIN) || hasPermission(ADMIN_PERMISSIONS.ADD_STUDENTS);
 
   useEffect(() => {
     let cancelled = false;
-    adminService.listStudents(search ? { search } : undefined)
+    const params: Record<string, string> = {};
+    if (search) params.search = search;
+    if (statusFilter === 'active') params.is_active = 'true';
+    if (statusFilter === 'inactive') params.is_active = 'false';
+    if (levelFilter) params.level = levelFilter;
+    if (facultyFilter) params.faculty = facultyFilter;
+    if (departmentFilter) params.department = departmentFilter;
+
+    adminService.listStudents(Object.keys(params).length > 0 ? params : undefined)
       .then((data) => {
         if (cancelled) return;
         setStudents(data.results || []);
@@ -84,7 +98,7 @@ export default function StudentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [search]);
+  }, [search, statusFilter, levelFilter, facultyFilter, departmentFilter]);
 
   async function handleAddStudent() {
     if (!form.full_name || !form.phone_number || !form.faculty || !form.department || !form.level || !form.gender) {
@@ -142,13 +156,80 @@ export default function StudentsPage() {
         {canAdd && <Button onClick={() => setShowAdd(true)}>Add Student</Button>}
       </div>
 
-      <Input
-        id="student-search"
-        placeholder="Search by name, matric, or phone..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
-      />
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <Input
+              id="student-search"
+              placeholder="Search by name, matric, or phone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
+            />
+          </div>
+          <Button variant={showFilters ? 'primary' : 'secondary'} className="px-4 shrink-0" onClick={() => setShowFilters(!showFilters)}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+          </Button>
+        </div>
+
+        {showFilters && (
+          <div className="glass-panel p-4 rounded-xl border border-border animate-slide-up-fade grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <Select
+              id="filter-status"
+              label="Status"
+              options={[
+                { value: 'all', label: 'All Statuses' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' }
+              ]}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            />
+            <Select
+              id="filter-level"
+              label="Level"
+              options={[
+                { value: '', label: 'All Levels' },
+                ...LEVELS.map(l => ({ value: l, label: `${l} Level` }))
+              ]}
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value)}
+            />
+            <Select
+              id="filter-faculty"
+              label="Faculty"
+              options={[
+                { value: '', label: 'All Faculties' },
+                ...Object.keys(FACULTIES_AND_DEPARTMENTS).map(f => ({ value: f, label: toTitleCase(f) }))
+              ]}
+              value={facultyFilter}
+              onChange={(e) => {
+                setFacultyFilter(e.target.value);
+                setDepartmentFilter('');
+              }}
+            />
+            <Select
+              id="filter-department"
+              label="Department"
+              options={[
+                { value: '', label: 'All Departments' },
+                ...(facultyFilter ? FACULTIES_AND_DEPARTMENTS[facultyFilter] : []).map(d => ({ value: d, label: d }))
+              ]}
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className={!facultyFilter ? "opacity-50 pointer-events-none" : ""}
+            />
+            
+            <div className="md:col-span-4 flex justify-end">
+              <Button size="sm" variant="ghost" onClick={() => {
+                setSearch(''); setStatusFilter('all'); setLevelFilter(''); setFacultyFilter(''); setDepartmentFilter('');
+              }}>Clear Filters</Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-10"><Spinner /></div>
