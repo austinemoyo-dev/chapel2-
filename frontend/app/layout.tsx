@@ -5,9 +5,13 @@ import { ToastProvider } from '@/providers/ToastProvider';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
-  title: 'Chapel Attendance',
+  title: 'VU Chapel',
   description: 'Chapel Attendance Management System — Facial recognition-based attendance tracking',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.png',
+    apple: '/icons/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
