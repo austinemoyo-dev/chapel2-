@@ -116,7 +116,7 @@ export async function getSession(): Promise<unknown> {
  */
 export async function extractEmbedding(alignedTensor: Float32Array): Promise<Float32Array> {
   const ort     = await import('onnxruntime-web');
-  const session = await getSession() as InstanceType<typeof ort.InferenceSession>;
+  const session = await getSession() as import('onnxruntime-web').InferenceSession;
 
   // The buffalo_l recognition model uses input name 'input.1'
   const inputName  = session.inputNames[0];
