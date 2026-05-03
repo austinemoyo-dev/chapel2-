@@ -506,7 +506,7 @@ function FaceCaptureInner() {
       </div>
 
       {/* ── Camera viewport ── */}
-      <div className="relative aspect-[3/4] bg-black overflow-hidden">
+      <div className="relative aspect-[3/4] max-w-[280px] mx-auto bg-black overflow-hidden rounded-[2.5rem] shadow-2xl mb-2">
         <video ref={videoRef} autoPlay playsInline muted
                className="w-full h-full object-cover"
                style={{ transform: 'scaleX(-1)' }}/>
@@ -519,7 +519,7 @@ function FaceCaptureInner() {
             <defs>
               <mask id="faceMask">
                 <rect width="100" height="133.33" fill="white"/>
-                <rect x="21" y="6" width="58" height="77.33" rx="29" fill="black"/>
+                <rect x="15" y="10" width="70" height="93.33" rx="35" fill="black"/>
               </mask>
             </defs>
             <rect width="100" height="133.33" fill="rgba(0,0,0,0.65)" mask="url(#faceMask)"/>
@@ -528,8 +528,8 @@ function FaceCaptureInner() {
 
         {/* Banking-style Scanning Reticle & Silhouette */}
         <div className="absolute inset-0 flex items-start justify-center pointer-events-none"
-             style={{ paddingTop: '6%' }}>
-          <div className="w-[58%] aspect-[3/4] relative">
+             style={{ paddingTop: '10%' }}>
+          <div className="w-[70%] aspect-[3/4] relative">
             
             {/* Segmented Outline Reticle */}
             <svg viewBox="0 0 200 266" className={`absolute inset-0 w-full h-full transition-all duration-500 ease-out ${ovalColor}`}>

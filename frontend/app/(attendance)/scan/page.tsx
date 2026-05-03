@@ -518,32 +518,32 @@ export default function ScanPage() {
 
   if (phase === 'select_service') {
     return (
-      <div className="min-h-dvh flex flex-col p-6 animate-fade-in bg-[radial-gradient(ellipse_at_top,_#1a0033_0%,_#000000_100%)]">
+      <div className="min-h-dvh flex flex-col p-6 animate-fade-in bg-background">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Protocol Scanner</h1>
-            <p className="text-sm font-medium text-white/60 mt-1">{user?.full_name}</p>
+            <h1 className="text-2xl font-black text-foreground tracking-tight">Protocol Scanner</h1>
+            <p className="text-sm font-medium text-muted mt-1">{user?.full_name}</p>
           </div>
           <div className="flex items-center gap-3">
             {pendingSync > 0 && (
               <button
-                className="px-4 py-2 rounded-2xl bg-primary/20 text-primary border border-primary/30 text-sm font-bold shadow-[0_0_15px_rgba(124,58,237,0.2)]"
+                className="px-4 py-2 rounded-2xl bg-primary/10 text-primary border border-primary/20 text-sm font-bold shadow-sm"
                 onClick={() => void handleSync()}
                 disabled={syncing}
               >
                 {syncing ? 'Syncing...' : `Sync (${pendingSync})`}
               </button>
             )}
-            <button className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors" onClick={logout}>
+            <button className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-muted hover:text-foreground transition-colors shadow-sm" onClick={logout}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             </button>
           </div>
         </div>
 
-        <div className="flex bg-white/5 backdrop-blur-md rounded-2xl p-1 mb-6 border border-white/10">
+        <div className="flex bg-surface-2 rounded-2xl p-1 mb-6 border border-border shadow-inner">
           <button
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              mode === 'sign_in' ? 'bg-primary text-white shadow-[0_4px_20px_rgba(124,58,237,0.4)]' : 'text-white/50 hover:text-white/80'
+              mode === 'sign_in' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
             }`}
             onClick={() => setMode('sign_in')}
           >
@@ -551,7 +551,7 @@ export default function ScanPage() {
           </button>
           <button
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              mode === 'sign_out' ? 'bg-primary text-white shadow-[0_4px_20px_rgba(124,58,237,0.4)]' : 'text-white/50 hover:text-white/80'
+              mode === 'sign_out' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
             }`}
             onClick={() => setMode('sign_out')}
           >
@@ -560,14 +560,14 @@ export default function ScanPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mb-8">
-          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 relative overflow-hidden">
-            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${isOnline ? 'bg-success/30' : 'bg-warning/30'}`} />
-            <p className="text-xs font-bold text-white/50 uppercase tracking-widest">Network</p>
+          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-surface border border-border shadow-sm relative overflow-hidden">
+            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${isOnline ? 'bg-success/20' : 'bg-warning/20'}`} />
+            <p className="text-xs font-bold text-muted uppercase tracking-widest">Network</p>
             <p className={`text-base font-black ${isOnline ? 'text-success' : 'text-warning'}`}>{isOnline ? 'Online' : 'Offline Mode'}</p>
           </div>
-          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 relative overflow-hidden">
-            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${gpsReady ? 'bg-success/30' : 'bg-warning/30'}`} />
-            <p className="text-xs font-bold text-white/50 uppercase tracking-widest">GPS Fix</p>
+          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-surface border border-border shadow-sm relative overflow-hidden">
+            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${gpsReady ? 'bg-success/20' : 'bg-warning/20'}`} />
+            <p className="text-xs font-bold text-muted uppercase tracking-widest">GPS Fix</p>
             <p className={`text-base font-black ${gpsReady ? 'text-success' : 'text-warning'}`}>
               {gpsReady ? `${Math.round(geo.accuracy || 0)}m Accuracy` : 'Locating...'}
             </p>
@@ -576,11 +576,11 @@ export default function ScanPage() {
 
         <div className="flex-1">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-black text-white/80 uppercase tracking-wider">
+            <h2 className="text-sm font-black text-muted uppercase tracking-wider">
               {services.length > 1 ? 'Available Services' : 'Active Service'}
             </h2>
             {services.length > 1 && (
-              <span className="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full font-bold border border-primary/30">
+              <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold border border-primary/20">
                 {services.length} Open
               </span>
             )}
@@ -589,15 +589,15 @@ export default function ScanPage() {
           {!servicesLoaded ? (
             <div className="text-center py-12 flex flex-col items-center">
               <Spinner size="lg" />
-              <p className="mt-4 text-sm font-medium text-white/60">Scanning schedule...</p>
+              <p className="mt-4 text-sm font-medium text-muted">Scanning schedule...</p>
             </div>
           ) : services.length === 0 ? (
-            <div className="text-center py-12 px-6 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md">
-              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="text-center py-12 px-6 rounded-[2rem] bg-surface border border-border shadow-sm">
+              <div className="w-16 h-16 rounded-full bg-surface-2 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
-              <p className="text-base font-bold text-white">No active services right now</p>
-              <p className="text-sm text-white/50 mt-2 leading-relaxed">Wait for a service window to open or contact the Superadmin.</p>
+              <p className="text-base font-bold text-foreground">No active services right now</p>
+              <p className="text-sm text-muted mt-2 leading-relaxed">Wait for a service window to open or contact the Superadmin.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -616,19 +616,19 @@ export default function ScanPage() {
                   <button
                     key={s.id}
                     onClick={() => void handleSelectService(s)}
-                    className="w-full text-left p-5 rounded-[2rem] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 hover:border-primary/50 transition-all hover:shadow-[0_8px_32px_rgba(124,58,237,0.2)] group relative overflow-hidden"
+                    className="w-full text-left p-5 rounded-[2rem] bg-surface border border-border hover:border-primary/50 transition-all hover:shadow-md group relative overflow-hidden card-lift"
                   >
-                    <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors pointer-events-none" />
-                    <div className="flex justify-between items-start mb-6">
+                    <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-colors pointer-events-none" />
+                    <div className="flex justify-between items-start mb-6 relative z-10">
                       <div>
-                        <p className="text-lg font-black text-white">{s.name || `${s.service_type} ${s.service_group}`}</p>
-                        <p className="text-sm font-medium text-white/60 mt-1">{s.scheduled_date} · Group {s.service_group}</p>
+                        <p className="text-lg font-black text-foreground">{s.name || `${s.service_type} ${s.service_group}`}</p>
+                        <p className="text-sm font-medium text-muted mt-1">{s.scheduled_date} · Group {s.service_group}</p>
                       </div>
-                      <span className="bg-success/20 text-success text-xs font-bold px-3 py-1.5 rounded-xl border border-success/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                      <span className="bg-success-muted text-success text-xs font-bold px-3 py-1.5 rounded-xl border border-success/20">
                         {windowLabel}
                       </span>
                     </div>
-                    <div className="flex items-center text-primary font-bold text-sm group-hover:text-white transition-colors">
+                    <div className="flex items-center text-primary font-bold text-sm group-hover:text-primary-hover transition-colors relative z-10">
                       Start Scanning
                       <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
                     </div>
@@ -643,13 +643,13 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="h-dvh flex flex-col relative bg-black overflow-hidden">
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+    <div className="h-dvh flex flex-col relative bg-surface overflow-hidden">
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-80" />
       <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Cinematic dark mask with glowing oval */}
-      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
+      {/* Light frosted mask with glowing oval */}
+      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center backdrop-blur-sm" style={{ paddingTop: '5%' }}>
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs>
             <mask id="faceMask">
@@ -657,18 +657,18 @@ export default function ScanPage() {
               <ellipse cx="50" cy="45" rx="28" ry="36" fill="black"/>
             </mask>
           </defs>
-          <rect width="100" height="100" fill="rgba(0,0,0,0.75)" mask="url(#faceMask)"/>
+          <rect width="100" height="100" fill="rgba(255,255,255,0.85)" mask="url(#faceMask)"/>
         </svg>
         
         <div className={`w-[56%] aspect-[28/36] rounded-full border-[3px] transition-all duration-500 relative ${
-          phase === 'scanning'  ? 'border-primary shadow-[0_0_40px_rgba(124,58,237,0.8),inset_0_0_20px_rgba(124,58,237,0.4)] scale-105' :
-          phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)]' :
-          faceDetected          ? 'border-success shadow-[0_0_30px_rgba(16,185,129,0.5)] scale-[1.02]' :
-                                  'border-white/20'
+          phase === 'scanning'  ? 'border-primary shadow-[0_0_40px_rgba(124,58,237,0.4),inset_0_0_20px_rgba(124,58,237,0.2)] scale-105' :
+          phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
+          faceDetected          ? 'border-success shadow-[0_0_30px_rgba(16,185,129,0.25)] scale-[1.02]' :
+                                  'border-primary/20'
         }`}>
           {/* Scanning sweep animation line */}
           {phase === 'scanning' && (
-            <div className="absolute left-0 right-0 h-[2px] bg-white shadow-[0_0_10px_#fff] rounded-full" 
+            <div className="absolute left-0 right-0 h-[2px] bg-primary shadow-[0_0_10px_rgba(124,58,237,0.8)] rounded-full" 
                  style={{ animation: 'slide-up-fade 1s infinite alternate linear' }} />
           )}
         </div>
@@ -678,13 +678,13 @@ export default function ScanPage() {
       <div className="absolute top-0 inset-x-0 p-6 z-20 flex justify-between items-start pointer-events-none">
         <button
           onClick={() => { stop(); setPhase('select_service'); }}
-          className="bg-black/40 backdrop-blur-xl border border-white/10 w-12 h-12 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors pointer-events-auto"
+          className="bg-white/80 backdrop-blur-md border border-border w-12 h-12 rounded-full flex items-center justify-center text-foreground hover:bg-white transition-colors pointer-events-auto shadow-sm"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
         </button>
         
-        <div className="bg-black/40 backdrop-blur-xl border border-white/10 px-5 py-2.5 rounded-full text-right pointer-events-auto shadow-xl">
-          <p className="text-white font-bold text-sm tracking-wide">{selectedService?.name || selectedService?.service_group}</p>
+        <div className="bg-white/80 backdrop-blur-md border border-border px-5 py-2.5 rounded-full text-right pointer-events-auto shadow-sm">
+          <p className="text-foreground font-bold text-sm tracking-wide">{selectedService?.name || selectedService?.service_group}</p>
           <div className="flex items-center justify-end gap-1.5 mt-0.5">
             <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-warning'} ${isOnline ? 'animate-pulse' : ''}`} />
             <p className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-success' : 'text-warning'}`}>{isOnline ? 'Online' : 'Offline'}</p>
@@ -694,28 +694,28 @@ export default function ScanPage() {
 
       {/* Mode Indicator Pill */}
       <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
-        <div className="bg-black/50 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+        <div className="bg-white/90 backdrop-blur-md border border-border px-4 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
           <span className={`w-2 h-2 rounded-full ${mode === 'sign_in' ? 'bg-primary' : 'bg-info'}`} />
-          <span className="text-white text-xs font-bold uppercase tracking-wider">{mode === 'sign_in' ? 'Sign In Mode' : 'Sign Out Mode'}</span>
+          <span className="text-foreground text-xs font-bold uppercase tracking-wider">{mode === 'sign_in' ? 'Sign In Mode' : 'Sign Out Mode'}</span>
         </div>
       </div>
 
       {/* Liveness Challenge Overlay */}
       {phase === 'liveness' && livenessChallenge && (
         <div className="absolute inset-x-0 bottom-32 flex flex-col items-center justify-end z-20 pointer-events-none animate-slide-up-fade">
-          <div className="mx-6 w-full max-w-sm rounded-[2rem] overflow-hidden bg-black/60 backdrop-blur-2xl border-2 border-yellow-400/50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-            <div className="h-1.5 bg-white/10 w-full relative">
+          <div className="mx-6 w-full max-w-sm rounded-[2rem] overflow-hidden bg-white/90 backdrop-blur-xl border-2 border-yellow-400/30 shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
+            <div className="h-1.5 bg-border w-full relative">
               <div
                 className="absolute inset-y-0 left-0 transition-all duration-100 ease-linear rounded-r-full"
                 style={{
                   width: `${livenessProgress}%`,
                   background: livenessProgress > 30 ? '#FACC15' : '#EF4444',
-                  boxShadow: `0 0 10px ${livenessProgress > 30 ? '#FACC15' : '#EF4444'}`
+                  boxShadow: `0 0 10px ${livenessProgress > 30 ? 'rgba(250,204,21,0.5)' : 'rgba(239,68,68,0.5)'}`
                 }}
               />
             </div>
             <div className="px-6 py-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 bg-yellow-400/20 rounded-full flex items-center justify-center mb-3">
+              <div className="w-16 h-16 bg-yellow-400/20 rounded-full flex items-center justify-center mb-3 text-yellow-600 border border-yellow-400/30">
                 <span className="text-3xl">
                   {livenessChallenge.label.includes('Blink') ? '👁️' :
                    livenessChallenge.label.includes('Smile') ? '😊' :
@@ -723,8 +723,8 @@ export default function ScanPage() {
                    livenessChallenge.label.includes('Right') ? '↪️' : '↕️'}
                 </span>
               </div>
-              <p className="text-white font-black text-2xl leading-tight mb-1">{livenessChallenge.label}</p>
-              <p className="text-white/70 text-sm font-medium">{livenessChallenge.instruction}</p>
+              <p className="text-foreground font-black text-2xl leading-tight mb-1">{livenessChallenge.label}</p>
+              <p className="text-muted text-sm font-medium">{livenessChallenge.instruction}</p>
             </div>
           </div>
         </div>
@@ -733,28 +733,37 @@ export default function ScanPage() {
       {/* Result Screen */}
       {phase === 'result' && result && (
         <div
-          className={`absolute inset-0 z-30 flex flex-col items-center justify-center animate-fade-in backdrop-blur-md
-            ${result.type === 'success' ? 'bg-success/80' : result.type === 'already_marked' ? 'bg-warning/80' : 'bg-danger/80'}`}
+          className={`absolute inset-0 z-30 flex flex-col items-center justify-center animate-fade-in backdrop-blur-xl
+            ${result.type === 'success' ? 'bg-success-muted/90' : result.type === 'already_marked' ? 'bg-warning-muted/90' : 'bg-danger-muted/90'}`}
         >
-          <div className="absolute top-0 inset-x-0 h-2 bg-black/20">
-            <div className={`h-full bg-white rounded-r-full ${result.type === 'success' ? 'result-bar-success' : 'result-bar-error'}`} />
+          <div className="absolute top-0 inset-x-0 h-2 bg-border/50">
+            <div className={`h-full rounded-r-full ${
+              result.type === 'success' ? 'bg-success result-bar-success' : 
+              result.type === 'already_marked' ? 'bg-warning result-bar-error' : 
+              'bg-danger result-bar-error'}`} />
           </div>
 
           <div className="flex flex-col items-center text-center p-8 max-w-sm w-full">
-            <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-2xl backdrop-blur-md border border-white/30 animate-pulse-ring ${result.type === 'success' ? 'bg-success' : result.type === 'already_marked' ? 'bg-warning' : 'bg-danger'}`}>
-              <span className="text-6xl text-white drop-shadow-md">
+            <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-xl border-4 animate-pulse-ring
+              ${result.type === 'success' ? 'bg-white border-success text-success' : 
+                result.type === 'already_marked' ? 'bg-white border-warning text-warning' : 
+                'bg-white border-danger text-danger'}`}>
+              <span className="text-6xl drop-shadow-sm font-bold">
                 {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
               </span>
             </div>
             
-            <h2 className="text-3xl font-black text-white mb-3 drop-shadow-md leading-tight">
+            <h2 className={`text-3xl font-black mb-3 drop-shadow-sm leading-tight
+              ${result.type === 'success' ? 'text-success' : 
+                result.type === 'already_marked' ? 'text-warning' : 
+                'text-danger'}`}>
               {result.type === 'success'
                 ? result.name
                 : result.type === 'already_marked'
                 ? 'Already Marked'
                 : 'Not Accepted'}
             </h2>
-            <p className="text-white/90 text-base font-medium drop-shadow-sm px-4">
+            <p className="text-foreground/80 text-base font-bold px-4">
               {result.message}
             </p>
           </div>
@@ -766,23 +775,23 @@ export default function ScanPage() {
       {phase === 'ready' && (
         <div className="absolute bottom-10 inset-x-6 z-20 flex flex-col gap-3">
           {!isOnline && !offlineReady && (
-            <div className="bg-warning/20 backdrop-blur-xl border border-warning/30 rounded-2xl p-4 text-center">
+            <div className="bg-warning-muted/90 backdrop-blur-md border border-warning/30 rounded-2xl p-4 text-center shadow-sm">
               <p className="text-warning font-bold text-sm">Offline Model Loading...</p>
               <p className="text-warning/80 text-xs mt-1">Please wait or connect to Wi-Fi</p>
             </div>
           )}
           {!canScan && (isOnline || offlineReady) && (
-            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-4 text-center">
-              <p className="text-white/60 font-semibold text-sm animate-pulse">Waiting for GPS Fix...</p>
+            <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl p-4 text-center shadow-sm">
+              <p className="text-muted font-semibold text-sm animate-pulse">Waiting for GPS Fix...</p>
             </div>
           )}
           {canScan && (
-            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-5 text-center shadow-2xl">
-              <p className="text-white font-black text-base tracking-wide mb-1 flex items-center justify-center gap-2">
+            <div className="bg-white/95 backdrop-blur-xl border border-border rounded-[2rem] p-5 text-center shadow-lg">
+              <p className="text-foreground font-black text-base tracking-wide mb-1 flex items-center justify-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 {mode === 'sign_in' ? 'Ready to Sign In' : 'Ready to Sign Out'}
               </p>
-              <p className="text-white/50 text-xs font-medium">Position face in the oval to begin</p>
+              <p className="text-muted text-xs font-medium">Position face in the oval to begin</p>
             </div>
           )}
         </div>
