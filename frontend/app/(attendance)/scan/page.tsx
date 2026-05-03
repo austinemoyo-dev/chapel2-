@@ -518,34 +518,40 @@ export default function ScanPage() {
 
   if (phase === 'select_service') {
     return (
-      <div className="p-4 space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="min-h-dvh flex flex-col p-6 animate-fade-in bg-[radial-gradient(ellipse_at_top,_#1a0033_0%,_#000000_100%)]">
+        <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-lg font-semibold">Attendance Scanner</h1>
-            <p className="text-sm text-muted">{user?.full_name}</p>
+            <h1 className="text-2xl font-black text-white tracking-tight">Protocol Scanner</h1>
+            <p className="text-sm font-medium text-white/60 mt-1">{user?.full_name}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {pendingSync > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => void handleSync()} loading={syncing}>
-                Sync {pendingSync}
-              </Button>
+              <button
+                className="px-4 py-2 rounded-2xl bg-primary/20 text-primary border border-primary/30 text-sm font-bold shadow-[0_0_15px_rgba(124,58,237,0.2)]"
+                onClick={() => void handleSync()}
+                disabled={syncing}
+              >
+                {syncing ? 'Syncing...' : `Sync (${pendingSync})`}
+              </button>
             )}
-            <Button variant="ghost" size="sm" onClick={logout}>Logout</Button>
+            <button className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors" onClick={logout}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            </button>
           </div>
         </div>
 
-        <div className="flex gap-2 p-1 bg-surface-2 rounded-xl">
+        <div className="flex bg-white/5 backdrop-blur-md rounded-2xl p-1 mb-6 border border-white/10">
           <button
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'sign_in' ? 'bg-primary text-white' : 'text-muted hover:text-foreground'
+            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+              mode === 'sign_in' ? 'bg-primary text-white shadow-[0_4px_20px_rgba(124,58,237,0.4)]' : 'text-white/50 hover:text-white/80'
             }`}
             onClick={() => setMode('sign_in')}
           >
             Sign In
           </button>
           <button
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'sign_out' ? 'bg-primary text-white' : 'text-muted hover:text-foreground'
+            className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+              mode === 'sign_out' ? 'bg-primary text-white shadow-[0_4px_20px_rgba(124,58,237,0.4)]' : 'text-white/50 hover:text-white/80'
             }`}
             onClick={() => setMode('sign_out')}
           >
@@ -553,263 +559,230 @@ export default function ScanPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-xl border border-border bg-surface p-3">
-            <p className="text-muted">Connection</p>
-            <p className={isOnline ? 'text-success' : 'text-warning'}>{isOnline ? 'Online' : 'Offline'}</p>
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 relative overflow-hidden">
+            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${isOnline ? 'bg-success/30' : 'bg-warning/30'}`} />
+            <p className="text-xs font-bold text-white/50 uppercase tracking-widest">Network</p>
+            <p className={`text-base font-black ${isOnline ? 'text-success' : 'text-warning'}`}>{isOnline ? 'Online' : 'Offline Mode'}</p>
           </div>
-          <div className="rounded-xl border border-border bg-surface p-3">
-            <p className="text-muted">GPS</p>
-            <p className={gpsReady ? 'text-success' : 'text-warning'}>
-              {gpsReady ? `Ready (${Math.round(geo.accuracy || 0)}m)` : 'Waiting'}
+          <div className="flex flex-col gap-1 p-4 rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 relative overflow-hidden">
+            <div className={`absolute -top-4 -right-4 w-12 h-12 rounded-full blur-xl ${gpsReady ? 'bg-success/30' : 'bg-warning/30'}`} />
+            <p className="text-xs font-bold text-white/50 uppercase tracking-widest">GPS Fix</p>
+            <p className={`text-base font-black ${gpsReady ? 'text-success' : 'text-warning'}`}>
+              {gpsReady ? `${Math.round(geo.accuracy || 0)}m Accuracy` : 'Locating...'}
             </p>
           </div>
         </div>
 
-        {geo.permissionDenied && (
-          <div className="bg-danger-muted border border-danger/30 rounded-xl p-3 text-sm text-danger">
-            GPS access denied. Location is required for attendance marking.
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-black text-white/80 uppercase tracking-wider">
+              {services.length > 1 ? 'Available Services' : 'Active Service'}
+            </h2>
+            {services.length > 1 && (
+              <span className="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full font-bold border border-primary/30">
+                {services.length} Open
+              </span>
+            )}
           </div>
-        )}
 
-        {!isOnline && (
-          <div className="bg-warning-muted border border-warning/30 rounded-xl p-3 text-sm text-warning">
-            Offline attendance is paused until a client-side face embedding model is installed.
-          </div>
-        )}
+          {!servicesLoaded ? (
+            <div className="text-center py-12 flex flex-col items-center">
+              <Spinner size="lg" />
+              <p className="mt-4 text-sm font-medium text-white/60">Scanning schedule...</p>
+            </div>
+          ) : services.length === 0 ? (
+            <div className="text-center py-12 px-6 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md">
+              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <p className="text-base font-bold text-white">No active services right now</p>
+              <p className="text-sm text-white/50 mt-2 leading-relaxed">Wait for a service window to open or contact the Superadmin.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {services.map((s) => {
+                const signInOpen  = s.window_open_time <= new Date().toISOString() && s.window_close_time >= new Date().toISOString();
+                const signOutOpen = s.signout_open_time && s.signout_close_time
+                  ? (s.signout_open_time as string) <= new Date().toISOString() && (s.signout_close_time as string) >= new Date().toISOString()
+                  : false;
+                const windowLabel = signInOpen && signOutOpen
+                  ? 'Sign-In & Sign-Out'
+                  : signOutOpen
+                  ? 'Sign-Out Only'
+                  : 'Sign-In Active';
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted">
-            {services.length > 1 ? 'Multiple Active Services — Select Yours' : 'Active Service'}
-          </h2>
-          {services.length > 1 && (
-            <span className="text-xs bg-warning/15 text-warning px-2 py-0.5 rounded-full font-semibold">
-              {services.length} active
-            </span>
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => void handleSelectService(s)}
+                    className="w-full text-left p-5 rounded-[2rem] bg-gradient-to-br from-white/10 to-white/5 border border-white/10 hover:border-primary/50 transition-all hover:shadow-[0_8px_32px_rgba(124,58,237,0.2)] group relative overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors pointer-events-none" />
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <p className="text-lg font-black text-white">{s.name || `${s.service_type} ${s.service_group}`}</p>
+                        <p className="text-sm font-medium text-white/60 mt-1">{s.scheduled_date} · Group {s.service_group}</p>
+                      </div>
+                      <span className="bg-success/20 text-success text-xs font-bold px-3 py-1.5 rounded-xl border border-success/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                        {windowLabel}
+                      </span>
+                    </div>
+                    <div className="flex items-center text-primary font-bold text-sm group-hover:text-white transition-colors">
+                      Start Scanning
+                      <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
-        {!servicesLoaded ? (
-          <div className="text-center py-8 text-muted"><Spinner /><p className="mt-2 text-sm">Detecting active service...</p></div>
-        ) : services.length === 0 ? (
-          <div className="text-center py-8 text-muted"><p className="text-sm">No active service at the moment. Ask the Superadmin to open a service window.</p></div>
-        ) : (
-          <div className="space-y-2">
-            {services.map((s) => {
-              const signInOpen  = s.window_open_time <= new Date().toISOString() && s.window_close_time >= new Date().toISOString();
-              const signOutOpen = s.signout_open_time && s.signout_close_time
-                ? s.signout_open_time <= new Date().toISOString() && s.signout_close_time >= new Date().toISOString()
-                : false;
-              const windowLabel = signInOpen && signOutOpen
-                ? 'Sign-In & Sign-Out'
-                : signOutOpen
-                ? 'Sign-Out Only'
-                : 'Sign-In';
-
-              return (
-                <div
-                  key={s.id}
-                  className={`w-full text-left p-4 rounded-xl bg-surface-2 border transition-colors ${
-                    services.length > 1 ? 'border-warning/40 hover:border-primary/50' : 'border-border'
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-semibold">{s.name || `${s.service_type} ${s.service_group}`}</p>
-                      <p className="text-xs text-muted">{s.scheduled_date} · Group {s.service_group}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="success">{windowLabel}</Badge>
-                    </div>
-                  </div>
-                  <Button className="w-full" onClick={() => void handleSelectService(s)}>
-                    {services.length > 1 ? `Select ${s.service_group} — ${windowLabel}` : 'Start Scanning'}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="h-dvh flex flex-col relative">
-      <div className="flex-1 relative bg-black">
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-        <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
-        <canvas ref={canvasRef} className="hidden" />
+    <div className="h-dvh flex flex-col relative bg-black overflow-hidden">
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+      <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
+      <canvas ref={canvasRef} className="hidden" />
 
-        {/* Dark mask with oval window */}
-        <div className="absolute inset-0 pointer-events-none">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <mask id="faceMask">
-                <rect width="100" height="100" fill="white"/>
-                <ellipse cx="50" cy="43" rx="29" ry="37" fill="black"/>
-              </mask>
-            </defs>
-            <rect width="100" height="100" fill="rgba(0,0,0,0.60)" mask="url(#faceMask)"/>
-          </svg>
+      {/* Cinematic dark mask with glowing oval */}
+      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <mask id="faceMask">
+              <rect width="100" height="100" fill="white"/>
+              <ellipse cx="50" cy="45" rx="28" ry="36" fill="black"/>
+            </mask>
+          </defs>
+          <rect width="100" height="100" fill="rgba(0,0,0,0.75)" mask="url(#faceMask)"/>
+        </svg>
+        
+        <div className={`w-[56%] aspect-[28/36] rounded-full border-[3px] transition-all duration-500 relative ${
+          phase === 'scanning'  ? 'border-primary shadow-[0_0_40px_rgba(124,58,237,0.8),inset_0_0_20px_rgba(124,58,237,0.4)] scale-105' :
+          phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)]' :
+          faceDetected          ? 'border-success shadow-[0_0_30px_rgba(16,185,129,0.5)] scale-[1.02]' :
+                                  'border-white/20'
+        }`}>
+          {/* Scanning sweep animation line */}
+          {phase === 'scanning' && (
+            <div className="absolute left-0 right-0 h-[2px] bg-white shadow-[0_0_10px_#fff] rounded-full" 
+                 style={{ animation: 'slide-up-fade 1s infinite alternate linear' }} />
+          )}
         </div>
+      </div>
 
-        {/* Colour-coded oval guide */}
-        <div className="absolute inset-0 flex items-start justify-center pointer-events-none"
-             style={{ paddingTop: '6%' }}>
-          <div className={`w-[58%] aspect-[3/4] rounded-full border-[3px] transition-all duration-300 ${
-            phase === 'scanning'  ? 'border-primary animate-pulse shadow-[0_0_24px_rgba(139,0,255,0.5)]' :
-            phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_24px_rgba(250,204,21,0.5)]' :
-            faceDetected          ? 'border-success shadow-[0_0_24px_rgba(5,150,105,0.4)]' :
-                                    'border-white/30'
-          }`}/>
-        </div>
-
-        <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start z-10">
-          <button
-            onClick={() => { stop(); setPhase('select_service'); }}
-            className="bg-surface/80 backdrop-blur px-3 py-1.5 rounded-xl text-sm"
-          >
-            Back
-          </button>
-          <div className="bg-surface/80 backdrop-blur px-3 py-1.5 rounded-xl text-xs text-right">
-            <p>{selectedService?.name || selectedService?.service_group}</p>
-            <p className={isOnline ? 'text-success' : 'text-warning'}>{isOnline ? 'Online' : 'Offline'}</p>
+      {/* Top HUD */}
+      <div className="absolute top-0 inset-x-0 p-6 z-20 flex justify-between items-start pointer-events-none">
+        <button
+          onClick={() => { stop(); setPhase('select_service'); }}
+          className="bg-black/40 backdrop-blur-xl border border-white/10 w-12 h-12 rounded-full flex items-center justify-center text-white hover:bg-white/10 transition-colors pointer-events-auto"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        
+        <div className="bg-black/40 backdrop-blur-xl border border-white/10 px-5 py-2.5 rounded-full text-right pointer-events-auto shadow-xl">
+          <p className="text-white font-bold text-sm tracking-wide">{selectedService?.name || selectedService?.service_group}</p>
+          <div className="flex items-center justify-end gap-1.5 mt-0.5">
+            <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-warning'} ${isOnline ? 'animate-pulse' : ''}`} />
+            <p className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-success' : 'text-warning'}`}>{isOnline ? 'Online' : 'Offline'}</p>
           </div>
         </div>
+      </div>
 
-        <div className="absolute left-4 right-4 top-20 z-10 rounded-xl bg-surface/80 backdrop-blur border border-border p-3 text-xs">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant={mode === 'sign_in' ? 'success' : 'info'}>{mode === 'sign_in' ? 'Sign in' : 'Sign out'}</Badge>
-            <Badge variant={gpsReady ? 'success' : 'warning'}>{gpsReady ? `GPS ${Math.round(geo.accuracy || 0)}m` : 'GPS waiting'}</Badge>
-            <Badge variant={embeddings.length > 0 ? 'success' : 'warning'}>{embeddings.length} cached</Badge>
-            {/* Offline model readiness */}
-            {offlineReady ? (
-              <Badge variant="success">✓ Offline ready</Badge>
-            ) : modelDownloadPct !== null ? (
-              <Badge variant="warning">📥 {modelDownloadPct}%</Badge>
-            ) : null}
-          </div>
-          <p className="text-muted mt-2">{embeddingStatus}</p>
+      {/* Mode Indicator Pill */}
+      <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
+        <div className="bg-black/50 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+          <span className={`w-2 h-2 rounded-full ${mode === 'sign_in' ? 'bg-primary' : 'bg-info'}`} />
+          <span className="text-white text-xs font-bold uppercase tracking-wider">{mode === 'sign_in' ? 'Sign In Mode' : 'Sign Out Mode'}</span>
         </div>
+      </div>
 
-        {/* Liveness challenge overlay */}
-        {phase === 'liveness' && livenessChallenge && (
-          <div className="absolute inset-0 flex flex-col items-center justify-end pb-10 z-20 pointer-events-none">
-            <div className="mx-4 w-full max-w-sm rounded-3xl overflow-hidden"
-                 style={{
-                   background: 'rgba(10,0,30,0.82)',
-                   backdropFilter: 'blur(20px)',
-                   border: '1.5px solid rgba(139,0,255,0.40)',
-                   boxShadow: '0 8px 32px rgba(0,0,0,0.40)',
-                 }}>
-              {/* Progress bar */}
-              <div className="h-1 bg-white/10 w-full">
-                <div
-                  className="h-full transition-all duration-200 rounded-full"
-                  style={{
-                    width: `${livenessProgress}%`,
-                    background: livenessProgress > 40
-                      ? 'linear-gradient(90deg,#7C3AED,#A855F7)'
-                      : 'linear-gradient(90deg,#DC2626,#EF4444)',
-                  }}
-                />
-              </div>
-
-              <div className="px-5 py-4 text-center">
-                <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">
-                  Liveness Check
-                </p>
-                <p className="text-4xl mb-2">{livenessChallenge.label.split(' ')[0] === 'Blink' ? '👁️' :
-                  livenessChallenge.label.includes('Smile') ? '😊' :
-                  livenessChallenge.label.includes('Left')  ? '↩️' :
-                  livenessChallenge.label.includes('Right') ? '↪️' : '↕️'}</p>
-                <p className="text-white font-black text-lg leading-tight">{livenessChallenge.label}</p>
-                <p className="text-white/60 text-xs mt-1">{livenessChallenge.instruction}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {phase === 'scanning' && scanning && (
-          <div className="absolute inset-0 flex items-center justify-center z-20">
-            <div className="text-center bg-black/40 backdrop-blur px-6 py-4 rounded-2xl">
-              <Spinner size="lg" />
-              <p className="mt-4 text-sm font-bold text-white">Matching face...</p>
-            </div>
-          </div>
-        )}
-
-        {/* Auto-dismiss result overlay — no button press needed */}
-        {phase === 'result' && result && (
-          <div
-            key={`${result.type}-${result.name}`}
-            className={`absolute inset-0 flex flex-col items-center justify-center z-20
-                        ${result.type === 'success'
-                          ? 'bg-success/90'
-                          : result.type === 'already_marked' || result.type === 'offline_unavailable'
-                          ? 'bg-warning/90'
-                          : 'bg-danger/90'}`}
-          >
-            {/* Drain bar at top — shows time remaining before auto-advance */}
-            <div className="absolute top-0 inset-x-0 h-1.5 bg-white/20 overflow-hidden">
+      {/* Liveness Challenge Overlay */}
+      {phase === 'liveness' && livenessChallenge && (
+        <div className="absolute inset-x-0 bottom-32 flex flex-col items-center justify-end z-20 pointer-events-none animate-slide-up-fade">
+          <div className="mx-6 w-full max-w-sm rounded-[2rem] overflow-hidden bg-black/60 backdrop-blur-2xl border-2 border-yellow-400/50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+            <div className="h-1.5 bg-white/10 w-full relative">
               <div
-                className={`h-full bg-white/80 ${
-                  result.type === 'success' ? 'result-bar-success' : 'result-bar-error'
-                }`}
+                className="absolute inset-y-0 left-0 transition-all duration-100 ease-linear rounded-r-full"
+                style={{
+                  width: `${livenessProgress}%`,
+                  background: livenessProgress > 30 ? '#FACC15' : '#EF4444',
+                  boxShadow: `0 0 10px ${livenessProgress > 30 ? '#FACC15' : '#EF4444'}`
+                }}
               />
             </div>
-
-            {/* Icon */}
-            <div className="text-8xl font-black text-white mb-4 drop-shadow-lg select-none">
-              {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
+            <div className="px-6 py-6 text-center flex flex-col items-center">
+              <div className="w-16 h-16 bg-yellow-400/20 rounded-full flex items-center justify-center mb-3">
+                <span className="text-3xl">
+                  {livenessChallenge.label.includes('Blink') ? '👁️' :
+                   livenessChallenge.label.includes('Smile') ? '😊' :
+                   livenessChallenge.label.includes('Left')  ? '↩️' :
+                   livenessChallenge.label.includes('Right') ? '↪️' : '↕️'}
+                </span>
+              </div>
+              <p className="text-white font-black text-2xl leading-tight mb-1">{livenessChallenge.label}</p>
+              <p className="text-white/70 text-sm font-medium">{livenessChallenge.instruction}</p>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Student name (large, protocol member reads it aloud) */}
-            <h2 className="text-2xl font-black text-white text-center px-6 drop-shadow">
+      {/* Result Screen */}
+      {phase === 'result' && result && (
+        <div
+          className={`absolute inset-0 z-30 flex flex-col items-center justify-center animate-fade-in backdrop-blur-md
+            ${result.type === 'success' ? 'bg-success/80' : result.type === 'already_marked' ? 'bg-warning/80' : 'bg-danger/80'}`}
+        >
+          <div className="absolute top-0 inset-x-0 h-2 bg-black/20">
+            <div className={`h-full bg-white rounded-r-full ${result.type === 'success' ? 'result-bar-success' : 'result-bar-error'}`} />
+          </div>
+
+          <div className="flex flex-col items-center text-center p-8 max-w-sm w-full">
+            <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-2xl backdrop-blur-md border border-white/30 animate-pulse-ring ${result.type === 'success' ? 'bg-success' : result.type === 'already_marked' ? 'bg-warning' : 'bg-danger'}`}>
+              <span className="text-6xl text-white drop-shadow-md">
+                {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
+              </span>
+            </div>
+            
+            <h2 className="text-3xl font-black text-white mb-3 drop-shadow-md leading-tight">
               {result.type === 'success'
                 ? result.name
                 : result.type === 'already_marked'
                 ? 'Already Marked'
                 : 'Not Accepted'}
             </h2>
-            <p className="text-white/80 text-sm mt-2 text-center px-8">
+            <p className="text-white/90 text-base font-medium drop-shadow-sm px-4">
               {result.message}
             </p>
-
-            {/* Tap anywhere to skip wait */}
-            <button
-              onClick={resetScan}
-              className="absolute inset-0 w-full h-full opacity-0"
-              aria-label="Skip and continue scanning"
-            />
           </div>
-        )}
-      </div>
+          <button onClick={resetScan} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+        </div>
+      )}
 
+      {/* Bottom Status HUD */}
       {phase === 'ready' && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-10 flex flex-col items-center">
-          {!isOnline && (
-            <p className="mb-3 text-center text-sm text-warning bg-surface/90 border border-warning/30 rounded-xl p-3 w-full">
-              Offline matching unavailable. Reconnect to scan.
-            </p>
+        <div className="absolute bottom-10 inset-x-6 z-20 flex flex-col gap-3">
+          {!isOnline && !offlineReady && (
+            <div className="bg-warning/20 backdrop-blur-xl border border-warning/30 rounded-2xl p-4 text-center">
+              <p className="text-warning font-bold text-sm">Offline Model Loading...</p>
+              <p className="text-warning/80 text-xs mt-1">Please wait or connect to Wi-Fi</p>
+            </div>
           )}
-          {!modelsLoaded ? (
-            <div className="bg-surface/90 backdrop-blur border border-border rounded-2xl p-4 w-full flex items-center justify-center gap-3">
-              <Spinner size="sm" />
-              <span className="text-sm font-medium">Loading AI Models...</span>
+          {!canScan && (isOnline || offlineReady) && (
+            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-4 text-center">
+              <p className="text-white/60 font-semibold text-sm animate-pulse">Waiting for GPS Fix...</p>
             </div>
-          ) : !canScan ? (
-            <div className="bg-surface/90 backdrop-blur border border-border rounded-2xl p-4 w-full text-center">
-              <span className="text-sm font-medium text-muted">Waiting for GPS...</span>
-            </div>
-          ) : (
-            <div className="bg-surface/90 backdrop-blur border border-border rounded-2xl p-5 w-full text-center shadow-lg">
-              <p className="text-sm font-bold text-foreground mb-1">
-                {mode === 'sign_in' ? '● Sign-In Scanner Active' : '● Sign-Out Scanner Active'}
+          )}
+          {canScan && (
+            <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-5 text-center shadow-2xl">
+              <p className="text-white font-black text-base tracking-wide mb-1 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                {mode === 'sign_in' ? 'Ready to Sign In' : 'Ready to Sign Out'}
               </p>
-              <p className="text-xs text-muted">
-                Face oval → liveness check → auto-scan → result (0.3s) → next person
-              </p>
+              <p className="text-white/50 text-xs font-medium">Position face in the oval to begin</p>
             </div>
           )}
         </div>
