@@ -100,6 +100,12 @@ export const serviceService = {
   updateSemester: (id: string, data: Partial<CreateSemesterRequest & { service_group_capacities: Record<string, number> }>) =>
     api.patch<Semester>(`/api/services/semesters/${id}/`, data),
 
+  /** POST /api/services/semesters/{id}/archive/ — Archive semester (locks it, deletes face samples, resets students) */
+  archiveSemester: (id: string) =>
+    api.post<{ message: string; deleted_samples: number; students_reset: number }>(
+      `/api/services/semesters/${id}/archive/`,
+    ),
+
   // Services
   /** GET /api/services/ — List services (filterable) */
   listServices: (params?: {

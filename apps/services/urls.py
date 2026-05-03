@@ -5,6 +5,7 @@ from django.urls import path
 from .views import (
     SemesterListCreateView,
     SemesterDetailView,
+    ArchiveSemesterView,
     ServiceListCreateView,
     ServiceDetailView,
     ServiceCancelView,
@@ -15,6 +16,7 @@ urlpatterns = [
     # Semester management
     path('semesters/', SemesterListCreateView.as_view(), name='semesters-list'),
     path('semesters/<uuid:id>/', SemesterDetailView.as_view(), name='semesters-detail'),
+    path('semesters/<uuid:id>/archive/', ArchiveSemesterView.as_view(), name='semesters-archive'),
 
     # Service management
     path('', ServiceListCreateView.as_view(), name='services-list'),

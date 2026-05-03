@@ -62,6 +62,92 @@ class SemesterDetailView(generics.RetrieveUpdateAPIView):
     lookup_field = 'id'
 
 
+class ArchiveSemesterView(APIView):
+    """
+    POST /api/services/semesters/{id}/archive/
+
+    Archives a semester:
+      1. Marks the semester as is_archived=True, is_active=False,
+         registration_open=False
+      2. Deletes all face sample image files from disk
+      3. Deletes FaceSample DB records for this semester
+      4. Resets every student in this semester:
+         face_registered=False, is_active=False
+      5. Logs the action in the audit trail
+
+    Once archived, the semester is locked — attendance records are retained
+    and audit logs are kept indefinitely.
+    Superadmin only.
+    """
+    permission_classes = [IsSuperadmin]
+
+    @transaction.atomic
+    def post(self, request, id):
+        import os
+        import shutil
+        from django.conf import settings as django_settings
+        from apps.students.models import Student, FaceSample
+
+        try:
+            semester = Semester.objects.get(id=id)
+        except Semester.DoesNotExist:
+            return Response(
+                {'error': 'Semester not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if semester.is_archived:
+            return Response(
+                {'error': 'Semester is already archived.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 1. Lock the semester
+        semester.is_archived       = True
+        semester.is_active         = False
+        semester.registration_open = False
+        semester.save(update_fields=['is_archived', 'is_active', 'registration_open'])
+
+        # 2. Delete face sample files from disk for this semester
+        face_dir = os.path.join(
+            django_settings.MEDIA_ROOT, 'face_samples', str(semester.id)
+        )
+        if os.path.exists(face_dir):
+            shutil.rmtree(face_dir)
+            logger.info('Deleted face sample directory: %s', face_dir)
+
+        # 3. Delete FaceSample records from DB
+        deleted_samples, _ = FaceSample.objects.filter(semester=semester).delete()
+        logger.info('Deleted %d face sample records for semester %s', deleted_samples, semester.id)
+
+        # 4. Reset all students in this semester
+        updated_students = Student.objects.filter(semester=semester).update(
+            face_registered=False,
+            is_active=False,
+        )
+        logger.info('Reset %d students for semester %s', updated_students, semester.id)
+
+        # 5. Audit log
+        log_action(
+            actor=request.user,
+            action_type='SEMESTER_ARCHIVED',
+            target_type='Semester',
+            target_id=semester.id,
+            new_value={
+                'semester_name':     semester.name,
+                'trigger':           'manual',
+                'deleted_samples':   deleted_samples,
+                'students_reset':    updated_students,
+            },
+        )
+
+        return Response({
+            'message':         f'Semester "{semester.name}" has been archived.',
+            'deleted_samples': deleted_samples,
+            'students_reset':  updated_students,
+        })
+
+
 # =============================================================================
 # SERVICE MANAGEMENT
 # =============================================================================

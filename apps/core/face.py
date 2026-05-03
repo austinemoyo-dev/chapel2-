@@ -38,7 +38,7 @@ def get_face_app():
             return _app
 
         try:
-            from insightface.app import FaceAnalysis
+            from insightface.app import FaceAnalysis  # type: ignore[import]
         except ImportError:
             logger.error(
                 'insightface is not installed. '

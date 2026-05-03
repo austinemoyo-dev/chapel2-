@@ -27,11 +27,13 @@ export default function SettingsPage() {
   const [longitude, setLongitude] = useState(0);
   const [radius, setRadius] = useState(200);
   const [regOpen, setRegOpen] = useState(false);
-  const [saving, setSaving]           = useState(false);
-  const [resetting, setResetting]     = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [loading, setLoading]         = useState(true);
-  const [hasChanges, setHasChanges]   = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [resetting, setResetting]           = useState(false);
+  const [confirmReset, setConfirmReset]     = useState(false);
+  const [archivingId, setArchivingId]       = useState<string | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
+  const [loading, setLoading]               = useState(true);
+  const [hasChanges, setHasChanges]         = useState(false);
 
   // Semesters state
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -154,6 +156,29 @@ export default function SettingsPage() {
     }
   };
 
+  const handleArchiveSemester = async (id: string) => {
+    setArchivingId(id);
+    try {
+      const res = await serviceService.archiveSemester(id);
+      setSemesters((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? { ...s, is_archived: true, is_active: false, registration_open: false }
+            : s,
+        ),
+      );
+      setConfirmArchiveId(null);
+      addToast(
+        `${res.message} (${res.deleted_samples} face samples deleted, ${res.students_reset} students reset)`,
+        'success',
+      );
+    } catch (err: any) {
+      addToast(err.message || 'Failed to archive semester', 'error');
+    } finally {
+      setArchivingId(null);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-20"><Spinner /></div>;
 
   return (
@@ -208,16 +233,61 @@ export default function SettingsPage() {
         ) : (
           <div className="space-y-2">
             {semesters.map(s => (
-              <div key={s.id} className="flex items-center justify-between p-4 rounded-xl border border-border/50 glass-card hover:border-primary/40 transition-colors">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm">{s.name}</p>
-                    {s.is_active && <span className="bg-success-muted text-success text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full">Active</span>}
+              <div key={s.id} className="p-4 rounded-xl border border-border/50 glass-card hover:border-primary/40 transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm">{s.name}</p>
+                      {s.is_active   && <span className="bg-success-muted text-success text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full">Active</span>}
+                      {s.is_archived && <span className="bg-surface-3 text-muted text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full">Archived</span>}
+                    </div>
+                    <p className="text-xs text-muted mt-1">
+                      {new Date(s.start_date).toLocaleDateString()} to {new Date(s.end_date).toLocaleDateString()}
+                    </p>
+                    {s.registration_open && (
+                      <span className="inline-block mt-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-medium px-2 py-1 rounded-lg">
+                        Registration Open
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-muted mt-1">{new Date(s.start_date).toLocaleDateString()} to {new Date(s.end_date).toLocaleDateString()}</p>
-                </div>
-                <div className="flex gap-2">
-                  {s.registration_open && <span className="bg-primary/10 border border-primary/20 text-primary text-xs font-medium px-2 py-1 rounded-lg">Registration Open</span>}
+
+                  {/* Archive action — only on active, non-archived semesters */}
+                  {!s.is_archived && (
+                    <div className="shrink-0">
+                      {confirmArchiveId === s.id ? (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <p className="text-xs text-danger font-semibold text-right max-w-[160px]">
+                            Deletes all face samples & resets students. Cannot undo.
+                          </p>
+                          <div className="flex gap-1.5">
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              loading={archivingId === s.id}
+                              onClick={() => handleArchiveSemester(s.id)}
+                            >
+                              Archive
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setConfirmArchiveId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setConfirmArchiveId(s.id)}
+                        >
+                          Archive
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
