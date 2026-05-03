@@ -128,10 +128,24 @@ class StudentRegistrationView(APIView):
             matric_number=matric_number,
         )
 
-        # Determine flags
-        has_exact_dup = bool(dup_results['checks']['matric'] or dup_results['checks']['phone'])
-        has_fuzzy_dup = bool(dup_results['checks']['name'])
-        duplicate_flag = has_exact_dup or has_fuzzy_dup
+        # Block duplicates immediately instead of flagging
+        if dup_results['checks']['matric']:
+            return Response(
+                {'error': 'A student with this Matriculation Number is already registered for this semester.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if dup_results['checks']['phone']:
+            return Response(
+                {'error': 'A student with this Phone Number is already registered.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if dup_results['checks']['name']:
+            return Response(
+                {'error': 'A student with the exact same name is already registered. If this is you, please contact the administrator.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        duplicate_flag = False
 
         # Assign service group
         try:

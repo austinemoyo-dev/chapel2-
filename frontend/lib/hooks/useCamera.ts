@@ -94,8 +94,17 @@ export function useCamera(options: CameraOptions = {}) {
       });
       streamRef.current = stream;
       if (videoRef.current) {
+        // Enforce muted and playsInline at the DOM level for strict mobile browsers
+        videoRef.current.muted = true;
+        videoRef.current.playsInline = true;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('muted', 'true');
+        
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(e => console.error("Video play on loadedmetadata failed", e));
+        };
+        videoRef.current.play().catch(e => console.error("Initial play failed", e));
       }
       setIsActive(true);
     } catch (err) {

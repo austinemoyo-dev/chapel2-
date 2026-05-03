@@ -34,6 +34,8 @@ class StudentRegistrationSerializer(serializers.ModelSerializer):
             'id', 'system_id', 'service_group', 'is_active',
             'duplicate_flag', 'face_registered', 'created_at',
         ]
+        # Disable automatic UniqueConstraint validation to allow soft-flagging duplicates
+        validators = []
 
     def get_duplicate_results(self, obj):
         """Return duplicate detection results if they were stored."""

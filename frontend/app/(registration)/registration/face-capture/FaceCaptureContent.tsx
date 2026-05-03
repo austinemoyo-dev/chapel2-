@@ -508,8 +508,8 @@ function FaceCaptureInner() {
       {/* ── Camera viewport ── */}
       <div className="relative aspect-[3/4] max-w-[280px] mx-auto bg-black overflow-hidden rounded-[2.5rem] shadow-2xl mb-2">
         <video ref={videoRef} autoPlay playsInline muted
-               className="w-full h-full object-cover"
-               style={{ transform: 'scaleX(-1)' }}/>
+               className="absolute inset-0 w-full h-full object-cover"
+               style={{ transform: 'scaleX(-1) translateZ(0)' }}/>
         <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'scaleX(-1)' }} />
         <canvas ref={canvasRef} className="hidden"/>
 
