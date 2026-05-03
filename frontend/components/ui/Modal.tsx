@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -9,9 +12,15 @@ interface ModalProps {
 }
 
 export default function Modal({ open, onClose, title, className = '', children }: ModalProps) {
-  if (!open) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted) return null;
+
+  const modalContent = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
@@ -32,4 +41,6 @@ export default function Modal({ open, onClose, title, className = '', children }
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

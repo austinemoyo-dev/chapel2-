@@ -534,6 +534,18 @@ class AdminStudentListView(generics.ListAPIView):
         if duplicate_flag is not None:
             qs = qs.filter(duplicate_flag=duplicate_flag.lower() == 'true')
 
+        level = self.request.query_params.get('level')
+        if level:
+            qs = qs.filter(level=level)
+
+        faculty = self.request.query_params.get('faculty')
+        if faculty:
+            qs = qs.filter(faculty__iexact=faculty)
+
+        department = self.request.query_params.get('department')
+        if department:
+            qs = qs.filter(department__iexact=department)
+
         search = self.request.query_params.get('search')
         if search:
             from django.db.models import Q
