@@ -44,6 +44,11 @@ export interface FrameAnalysis {
   headYaw: number;
   /** All 52 ARKit blendshape scores keyed by categoryName. */
   blendshapes: Record<string, number>;
+  /**
+   * Raw MediaPipe face landmarks (normalised 0–1 coords), null when no face
+   * detected. Passed to facePreprocess.alignFace() for offline ArcFace matching.
+   */
+  landmarks: { x: number; y: number; z: number }[] | null;
 }
 
 // Face centre must stay within this many normalised units (0–1 x-coords)
@@ -272,6 +277,7 @@ export function useCamera(options: CameraOptions = {}) {
       faceFrontal,
       headYaw,
       blendshapes,
+      landmarks: lm ?? null,
     };
   }, [modelsLoaded]);
 

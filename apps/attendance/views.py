@@ -535,6 +535,47 @@ class EmbeddingsDownloadView(APIView):
         })
 
 
+class ArcFaceModelView(APIView):
+    """
+    GET /api/attendance/offline-model/
+
+    Streams the buffalo_l ArcFace ONNX weights file so protocol member devices
+    can run face matching locally when offline.
+    Requires Protocol Member authentication — the model is not biometric data
+    but is restricted to authorised field staff only.
+    """
+    permission_classes = [IsProtocolMember]
+
+    def get(self, request):
+        import os
+        from django.http import FileResponse
+
+        model_path = os.path.expanduser(
+            '~/.insightface/models/buffalo_l/w600k_r50.onnx'
+        )
+        if not os.path.exists(model_path):
+            return Response(
+                {
+                    'error': (
+                        'Offline model not available yet. '
+                        'The backend must complete its first start-up to download '
+                        'InsightFace weights (~500 MB). Check backend logs.'
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        file_size = os.path.getsize(model_path)
+        response = FileResponse(
+            open(model_path, 'rb'),
+            content_type='application/octet-stream',
+        )
+        response['Content-Disposition'] = 'attachment; filename="arcface.onnx"'
+        response['Content-Length']      = str(file_size)
+        response['Cache-Control']       = 'private, max-age=86400'
+        return response
+
+
 class AttendanceServiceListView(generics.ListAPIView):
     """
     GET /api/attendance/service/{service_id}/

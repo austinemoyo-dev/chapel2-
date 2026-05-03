@@ -109,4 +109,5 @@ export const FACE_MATCH_THRESHOLD = parseFloat(
 
 /** IndexedDB database name */
 export const IDB_NAME = 'chapel_attendance_offline';
-export const IDB_VERSION = 1;
+/** Bump this when adding new object stores so onupgradeneeded fires. */
+export const IDB_VERSION = 2; // v2 adds model_cache store

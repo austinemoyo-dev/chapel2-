@@ -9,8 +9,11 @@ import { useDeviceId } from '@/lib/hooks/useDeviceId';
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus';
 import { attendanceService, type EmbeddingEntry } from '@/lib/api/attendanceService';
 import { serviceService, type Service } from '@/lib/api/serviceService';
-import { cacheEmbeddings, getCachedEmbeddings, getQueueCount } from '@/lib/offline/db';
+import { cacheEmbeddings, getCachedEmbeddings, getQueueCount, addToQueue } from '@/lib/offline/db';
 import { syncOfflineRecords, registerBackgroundSync } from '@/lib/offline/syncManager';
+import { downloadAndCacheModel, isModelReady, extractEmbedding } from '@/lib/offline/faceModel';
+import { alignFace, imageDataToFloat32 } from '@/lib/offline/facePreprocess';
+import { matchOffline } from '@/lib/offline/offlineMatcher';
 import { LIVENESS_CHALLENGES } from '@/lib/utils/constants';
 import { ApiError } from '@/lib/api/client';
 import Button from '@/components/ui/Button';
@@ -40,6 +43,13 @@ export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<{ type: ResultType; name: string; message: string } | null>(null);
   const [faceDetected, setFaceDetected] = useState(false);
+
+  // Offline model state
+  const [offlineReady, setOfflineReady]           = useState(false);
+  const [modelDownloadPct, setModelDownloadPct]   = useState<number | null>(null);
+  // Stores the most recent MediaPipe landmarks so handleCapture() can use
+  // them for face alignment without re-running detection.
+  const lastLandmarksRef = useRef<{ x: number; y: number; z: number }[] | null>(null);
 
   // Liveness
   const [livenessChallenge, setLivenessChallenge] = useState<typeof LIVENESS_CHALLENGES[number] | null>(null);
@@ -157,6 +167,34 @@ export default function ScanPage() {
     return () => window.clearInterval(interval);
   }, []);
 
+  // Download the ArcFace ONNX model in the background as soon as the scanner
+  // mounts (while the device is still online). This makes offline matching
+  // available mid-service without any extra action from the protocol member.
+  useEffect(() => {
+    let cancelled = false;
+    isModelReady().then((ready) => {
+      if (cancelled) return;
+      if (ready) {
+        setOfflineReady(true);
+        setModelDownloadPct(100);
+        return;
+      }
+      // Not cached yet — download now (background, non-blocking)
+      setModelDownloadPct(0);
+      downloadAndCacheModel((pct) => {
+        if (!cancelled) setModelDownloadPct(pct);
+      })
+        .then(() => { if (!cancelled) { setOfflineReady(true); setModelDownloadPct(100); } })
+        .catch((err) => {
+          if (!cancelled) {
+            console.warn('[OfflineModel] Download failed:', err);
+            setModelDownloadPct(null); // hide progress bar on failure
+          }
+        });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (isOnline && pendingSync > 0 && !syncing) {
       const timer = window.setTimeout(() => {
@@ -222,7 +260,10 @@ export default function ScanPage() {
         const analysis = await analyzeFrame();
         if (!analysis) return;
 
-        const { skinToneRatio, isStable, blendshapes, headYaw } = analysis;
+        const { skinToneRatio, isStable, blendshapes, headYaw, landmarks } = analysis;
+        // Always keep the latest landmarks so handleCapture() can use them
+        // for face alignment during offline matching without re-running detection.
+        if (landmarks) lastLandmarksRef.current = landmarks;
         const hasFace = skinToneRatio >= 0.5;
         setFaceDetected(hasFace);
 
@@ -302,14 +343,104 @@ export default function ScanPage() {
     setScanning(true);
 
     if (!isOnline) {
-      setResult({
-        type: 'offline_unavailable',
-        name: '',
-        message: 'Offline face matching needs a browser embedding model before attendance can be accepted locally.',
-      });
+      // ── Offline face matching path ──────────────────────────────────────────
+      if (!offlineReady) {
+        setResult({
+          type: 'failed',
+          name: '',
+          message: modelDownloadPct !== null
+            ? `Offline model downloading… ${modelDownloadPct}%. Please wait or reconnect.`
+            : 'Offline model not ready. Please reconnect to Wi-Fi.',
+        });
+        setScanning(false);
+        setPhase('result');
+        scheduleAutoReset('failed');
+        return;
+      }
+
+      const landmarks = lastLandmarksRef.current;
+      if (!landmarks || landmarks.length < 400) {
+        setResult({ type: 'failed', name: '', message: 'No face landmarks detected. Try again.' });
+        setScanning(false);
+        setPhase('result');
+        scheduleAutoReset('failed');
+        return;
+      }
+
+      if (geo.latitude === null || geo.longitude === null || !deviceId) {
+        setResult({ type: 'failed', name: '', message: 'GPS or device ID missing.' });
+        setScanning(false);
+        setPhase('result');
+        scheduleAutoReset('failed');
+        return;
+      }
+
+      let offlineSucceeded = false;
+      try {
+        // Align face to 112×112 ArcFace template
+        const vw = videoRef.current?.videoWidth  ?? 640;
+        const vh = videoRef.current?.videoHeight ?? 480;
+        const aligned = alignFace(videoRef.current!, landmarks, vw, vh);
+        if (!aligned) {
+          setResult({ type: 'failed', name: '', message: 'Could not align face. Position face in the oval.' });
+          setScanning(false);
+          setPhase('result');
+          scheduleAutoReset('failed');
+          return;
+        }
+
+        // Extract 512-dim ArcFace embedding via ONNX Runtime Web
+        const tensor    = imageDataToFloat32(aligned);
+        const embedding = await extractEmbedding(tensor);
+
+        // 1-to-N cosine match against cached student pool
+        const pool = await getCachedEmbeddings(selectedService.id);
+        if (!pool || pool.embeddings.length === 0) {
+          setResult({ type: 'failed', name: '', message: 'No cached student embeddings. Select service again while online.' });
+          setScanning(false);
+          setPhase('result');
+          scheduleAutoReset('failed');
+          return;
+        }
+
+        const match = matchOffline(embedding, pool);
+        if (!match.matched || !match.student_id) {
+          setResult({ type: 'failed', name: '', message: 'Face not recognised offline. Please try again.' });
+          setScanning(false);
+          setPhase('result');
+          scheduleAutoReset('failed');
+          return;
+        }
+
+        // Queue the record for sync when back online
+        await addToQueue({
+          id:                 crypto.randomUUID(),
+          student_id:         match.student_id,
+          service_id:         selectedService.id,
+          attendance_type:    mode,
+          timestamp:          new Date().toISOString(),
+          gps_lat:            parseFloat(geo.latitude.toFixed(7)),
+          gps_lng:            parseFloat(geo.longitude.toFixed(7)),
+          device_id:          deviceId,
+          protocol_member_id: user?.id ?? '',
+          created_at:         new Date().toISOString(),
+        });
+
+        setPendingSync((n) => n + 1);
+        offlineSucceeded = true;
+        setResult({
+          type:    'success',
+          name:    match.student_name ?? '',
+          message: '📵 Offline — will sync when back online',
+        });
+      } catch (err) {
+        console.error('[OfflineMatch]', err);
+        setResult({ type: 'failed', name: '', message: 'Offline matching error. Please retry.' });
+      }
+
       setScanning(false);
       setPhase('result');
-      scheduleAutoReset('offline_unavailable');
+      scheduleAutoReset(offlineSucceeded ? 'success' : 'failed');
       return;
     }
 
@@ -551,6 +682,12 @@ export default function ScanPage() {
             <Badge variant={mode === 'sign_in' ? 'success' : 'info'}>{mode === 'sign_in' ? 'Sign in' : 'Sign out'}</Badge>
             <Badge variant={gpsReady ? 'success' : 'warning'}>{gpsReady ? `GPS ${Math.round(geo.accuracy || 0)}m` : 'GPS waiting'}</Badge>
             <Badge variant={embeddings.length > 0 ? 'success' : 'warning'}>{embeddings.length} cached</Badge>
+            {/* Offline model readiness */}
+            {offlineReady ? (
+              <Badge variant="success">✓ Offline ready</Badge>
+            ) : modelDownloadPct !== null ? (
+              <Badge variant="warning">📥 {modelDownloadPct}%</Badge>
+            ) : null}
           </div>
           <p className="text-muted mt-2">{embeddingStatus}</p>
         </div>
