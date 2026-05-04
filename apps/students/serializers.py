@@ -120,7 +120,7 @@ class StudentListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'student_type', 'matric_number', 'system_id',
             'full_name', 'phone_number', 'faculty', 'department', 'level',
-            'gender', 'service_group', 'is_active', 'duplicate_flag',
+            'gender', 'profile_photo', 'service_group', 'is_active', 'duplicate_flag',
             'face_registered', 'semester', 'semester_name', 'created_at',
         ]
 

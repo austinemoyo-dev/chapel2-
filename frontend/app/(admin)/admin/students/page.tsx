@@ -20,6 +20,24 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Spinner from '@/components/ui/Spinner';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+function getProfilePhotoUrl(photo: string | null | undefined) {
+  if (!photo) return '';
+  if (photo.startsWith('http')) return photo;
+  if (photo.startsWith('/')) return `${API_URL}${photo}`;
+  return `${API_URL}/media/${photo}`;
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
 const FACULTIES_AND_DEPARTMENTS: Record<string, string[]> = {
   "FACULTY OF BASIC AND APPLIED SCIENCES": [
     "Biotechnology",
@@ -234,29 +252,63 @@ export default function StudentsPage() {
       {loading ? (
         <div className="flex justify-center py-10"><Spinner /></div>
       ) : (
-        <div className="space-y-2">
-          {students.map((student) => (
-            <a
-              key={student.id}
-              href={`/admin/students/${student.id}`}
-              className="block p-4 rounded-2xl glass-card card-lift border border-transparent hover:border-primary/20 transition-all duration-300"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">{student.full_name}</p>
-                  <p className="text-xs text-muted">{student.matric_number || student.system_id} · {student.department}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {students.map((student) => {
+            const photoUrl = getProfilePhotoUrl(student.profile_photo);
+            return (
+              <a
+                key={student.id}
+                href={`/admin/students/${student.id}`}
+                className="group relative block p-5 rounded-3xl glass-card card-lift border border-white/40 hover:border-primary/40 transition-all duration-300 overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                <div className="relative flex flex-col gap-4">
+                  <div className="flex items-start justify-between">
+                    <div className="h-16 w-16 rounded-full border-2 border-surface bg-surface-2 overflow-hidden shadow-sm flex items-center justify-center shrink-0">
+                      {photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-lg font-bold text-muted">{initials(student.full_name) || 'ST'}</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={student.is_active ? 'success' : 'warning'} className="text-[10px] px-1.5 py-0">
+                        {student.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                      {student.duplicate_flag && (
+                        <Badge variant="danger" className="text-[10px] px-1.5 py-0">Duplicate</Badge>
+                      )}
+                      {!student.face_registered && (
+                        <Badge variant="warning" className="text-[10px] px-1.5 py-0">No Face</Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p className="font-bold text-foreground leading-tight group-hover:text-primary transition-colors line-clamp-1" title={student.full_name}>
+                      {student.full_name}
+                    </p>
+                    <p className="text-xs font-medium text-muted mt-1">{student.matric_number || student.system_id}</p>
+                    <p className="text-xs text-muted/80 mt-1 line-clamp-1" title={student.department}>
+                      {student.level ? `${student.level} Lvl · ` : ''}{student.department}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={student.is_active ? 'success' : 'warning'}>
-                    {student.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                  {student.duplicate_flag && <Badge variant="danger">Duplicate</Badge>}
-                </div>
-              </div>
-            </a>
-          ))}
+              </a>
+            );
+          })}
           {students.length === 0 && (
-            <p className="text-center py-10 text-muted">No students found</p>
+            <div className="col-span-full py-20 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-surface-2 mb-4">
+                <svg className="w-8 h-8 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <p className="text-lg font-medium text-foreground">No students found</p>
+              <p className="text-sm text-muted mt-1">Try adjusting your filters or search query.</p>
+            </div>
           )}
         </div>
       )}
