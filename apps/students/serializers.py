@@ -208,5 +208,5 @@ class PublicStudentLookupSerializer(serializers.ModelSerializer):
         model = Student
         fields = [
             'id', 'system_id', 'full_name', 'department', 'level',
-            'service_group', 'face_registered', 'is_active', 'duplicate_flag'
+            'service_group', 'face_registered', 'is_active', 'duplicate_flag', 'semester'
         ]

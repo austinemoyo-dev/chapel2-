@@ -9,7 +9,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Logo from '@/components/ui/Logo';
 
-export default function LookupPage() {
+export default function ResumeCapturePage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,10 +53,10 @@ export default function LookupPage() {
         <div className="text-center mb-8">
           <Logo className="mx-auto" />
           <h2 className="mt-6 text-3xl font-extrabold text-foreground tracking-tight">
-            Service Check
+            Resume Face Capture
           </h2>
           <p className="mt-2 text-sm text-muted">
-            Find your assigned Service Group and check your face capture status.
+            Lost your connection? Enter your Matric or Phone Number to resume your face registration.
           </p>
         </div>
 
@@ -77,7 +77,7 @@ export default function LookupPage() {
               loading={loading}
               disabled={!identifier.trim() || loading}
             >
-              Check Status
+              Verify Details
             </Button>
           </form>
         </Card>
@@ -91,17 +91,11 @@ export default function LookupPage() {
         {result && (
           <div className="mt-8 animate-slide-up">
             <Card variant="glass" className="overflow-hidden border-primary/30">
-              <div className="bg-primary/10 p-6 text-center border-b border-primary/20">
-                <p className="text-sm font-medium text-primary mb-1">Your Assigned Service Group</p>
-                <h3 className="text-4xl font-extrabold text-foreground">
-                  {result.service_group || 'Unassigned'}
-                </h3>
-              </div>
-              
               <div className="p-6 space-y-4">
                 <div className="text-center mb-6">
                   <p className="text-xl font-bold text-foreground">{result.full_name}</p>
                   <p className="text-sm text-muted">{result.department}</p>
+                  <p className="text-xs font-semibold text-primary mt-1">{result.level} Level</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-surface-2 border border-border">
@@ -111,15 +105,22 @@ export default function LookupPage() {
                       {result.face_registered ? 'Registered' : 'Pending'}
                     </Badge>
                   </div>
-                  {!result.face_registered && (
-                    <p className="text-xs text-muted mt-2 leading-relaxed">
-                      Your face has not been captured yet. Please proceed to the Chapel admin desk during the <strong className="text-foreground">{result.service_group || 'service'}</strong> to complete your registration.
-                    </p>
-                  )}
-                  {result.face_registered && (
-                    <p className="text-xs text-success mt-2 leading-relaxed">
-                      You are fully registered! You can proceed directly to the smart scanners for attendance.
-                    </p>
+                  
+                  {result.face_registered ? (
+                    <div className="mt-4 p-3 rounded-lg bg-success/10 border border-success/20 text-success text-center">
+                      <p className="text-sm font-medium">Your face is already captured!</p>
+                      <p className="text-xs mt-1">No further action is needed. You can safely return to the home page.</p>
+                    </div>
+                  ) : (
+                    <div className="mt-6">
+                      <Button
+                        variant="primary"
+                        onClick={() => router.push(`/registration/face-capture?student=${result.id}&semester=${result.semester}`)}
+                        className="w-full h-12 text-lg shadow-lg"
+                      >
+                        Proceed to Camera
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>

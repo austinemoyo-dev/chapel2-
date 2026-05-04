@@ -85,6 +85,7 @@ export interface PublicStudentLookupResponse {
   face_registered: boolean;
   is_active: boolean;
   duplicate_flag: boolean;
+  semester: string;
 }
 
 export interface MatricUpdateRequest {
