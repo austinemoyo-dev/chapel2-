@@ -75,6 +75,18 @@ export interface FaceStatusResponse {
   message: string;
 }
 
+export interface PublicStudentLookupResponse {
+  id: string;
+  system_id: string;
+  full_name: string;
+  department: string;
+  level: string;
+  service_group: string | null;
+  face_registered: boolean;
+  is_active: boolean;
+  duplicate_flag: boolean;
+}
+
 export interface MatricUpdateRequest {
   token: string;
   system_id: string;
@@ -118,4 +130,8 @@ export const registrationService = {
   /** PATCH /api/registration/update-matric/ — Student updates matric via secure link */
   updateMatric: (data: MatricUpdateRequest) =>
     api.patch<{ message: string }>('/api/registration/update-matric/', data),
+
+  /** GET /api/registration/lookup/ — Public student service group and status lookup */
+  lookupStudent: (identifier: string) =>
+    api.get<PublicStudentLookupResponse>(`/api/registration/lookup/?identifier=${encodeURIComponent(identifier)}`),
 };

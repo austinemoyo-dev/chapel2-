@@ -22,6 +22,7 @@ from .serializers import (
     FaceStatusSerializer,
     MatricUpdateSerializer,
     DuplicateResolutionSerializer,
+    PublicStudentLookupSerializer,
 )
 from .utils import (
     run_all_duplicate_checks,
@@ -69,6 +70,52 @@ class RegistrationStatusView(APIView):
             'message': 'Registration is open.' if semester.registration_open
                        else 'Registration is currently closed.',
         })
+
+
+class StudentLookupView(APIView):
+    """
+    GET /api/registration/lookup/?identifier=...
+    
+    Public endpoint for a student to check their service group assignment
+    and face registration status using their matric number, phone number, or system ID.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        identifier = request.query_params.get('identifier')
+        if not identifier:
+            return Response(
+                {"error": "Please provide an identifier (Matric Number, Phone Number, or System ID)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        identifier = identifier.strip()
+        
+        # We only want to look up students in the active semester
+        semester = Semester.objects.filter(is_active=True).first()
+        if not semester:
+            return Response(
+                {"error": "No active semester found. Please contact administration."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        from django.db.models import Q
+        student = Student.objects.filter(
+            semester=semester
+        ).filter(
+            Q(matric_number__iexact=identifier) |
+            Q(system_id__iexact=identifier) |
+            Q(phone_number=identifier)
+        ).first()
+
+        if not student:
+            return Response(
+                {"error": "Student not found in the active semester. Please check your identifier."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = PublicStudentLookupSerializer(student)
+        return Response(serializer.data)
 
 
 # =============================================================================

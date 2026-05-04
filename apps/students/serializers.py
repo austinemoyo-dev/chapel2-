@@ -201,3 +201,12 @@ class DuplicateResolutionSerializer(serializers.Serializer):
     student_id = serializers.UUIDField()
     action = serializers.ChoiceField(choices=['approve', 'reject'])
     reason_note = serializers.CharField(required=False, default='')
+
+class PublicStudentLookupSerializer(serializers.ModelSerializer):
+    """Read-only serializer for public student lookup, omitting sensitive data."""
+    class Meta:
+        model = Student
+        fields = [
+            'id', 'system_id', 'full_name', 'department', 'level',
+            'service_group', 'face_registered', 'is_active', 'duplicate_flag'
+        ]
