@@ -1,11 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Prevent Next.js from stripping trailing slashes before rewrites run.
-  // Without this, /api/auth/login/ is normalised to /api/auth/login and the
-  // Django proxy receives the slash-less URL, which triggers APPEND_SLASH errors.
-  skipTrailingSlashRedirect: true,
-
   // Enable static export capabilities
   output: 'standalone',
 
