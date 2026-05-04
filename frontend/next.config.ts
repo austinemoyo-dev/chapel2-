@@ -4,14 +4,6 @@ const nextConfig: NextConfig = {
   // Enable static export capabilities
   output: 'standalone',
 
-  // Disable linting and typechecking during build to save memory on VPS
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // Image optimization
   images: {
     remotePatterns: [
