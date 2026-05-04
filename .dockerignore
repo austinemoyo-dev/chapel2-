@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# Node
+frontend/node_modules
+frontend/.next
+frontend/.turbo
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Media & logs (these are in Docker volumes)
+media/
+staticfiles/
+*.log
+
+# Docs
+README.md
+DEPLOY.md
+LICENSE
+
+# Docker (don't send compose into the build)
+docker-compose.yml
+docker-compose.*.yml

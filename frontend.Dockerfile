@@ -15,6 +15,8 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Next.js telemetry disable
 ENV NEXT_TELEMETRY_DISABLED=1
+# Limit Node heap to prevent OOM/swap thrashing on small VPS
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 # Build Next.js application
 RUN npm run build
