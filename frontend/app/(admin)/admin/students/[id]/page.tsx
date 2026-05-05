@@ -49,6 +49,117 @@ function ProfileField({ label, value }: { label: string; value: React.ReactNode 
   );
 }
 
+/* ─── Attendance History Card ─── */
+import type { AttendanceRecord } from '@/lib/api/adminService';
+
+function AttendanceHistoryCard({ studentId }: { studentId: string }) {
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    adminService.getStudentAttendance(studentId)
+      .then(data => {
+        const recs = Array.isArray(data) ? data : (data as any).results || [];
+        setRecords(recs);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [studentId]);
+
+  const validCount = records.filter(r => r.is_valid).length;
+  const invalidCount = records.filter(r => !r.is_valid && !r.is_backdated).length;
+  const backdatedCount = records.filter(r => r.is_backdated).length;
+  const pct = records.length > 0 ? Math.round((validCount / records.length) * 100) : 0;
+
+  if (loading) {
+    return (
+      <Card variant="glass">
+        <h2 className="text-lg font-semibold mb-4">Attendance History</h2>
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-14 rounded-xl shimmer-loading" />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="glass">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Attendance History</h2>
+        <Badge variant="info">{records.length} records</Badge>
+      </div>
+
+      {/* Summary strip */}
+      {records.length > 0 && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {[
+            { label: 'Valid', value: validCount, color: 'text-success', bg: 'bg-success/10' },
+            { label: 'Invalid', value: invalidCount, color: 'text-danger', bg: 'bg-danger/10' },
+            { label: 'Backdated', value: backdatedCount, color: 'text-warning', bg: 'bg-warning/10' },
+            { label: 'Rate', value: `${pct}%`, color: pct >= 70 ? 'text-success' : 'text-danger', bg: pct >= 70 ? 'bg-success/10' : 'bg-danger/10' },
+          ].map(s => (
+            <div key={s.label} className={`${s.bg} rounded-xl p-2.5 text-center`}>
+              <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] text-muted font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {records.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-sm text-muted">No attendance records found for this student.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
+          {records.map(record => (
+            <div
+              key={record.id}
+              className="flex items-center gap-3 p-3 rounded-xl bg-surface-2 border border-border/40"
+            >
+              {/* Status icon */}
+              {record.is_valid ? (
+                <svg className="w-4 h-4 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-danger shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {record.service_info?.service_type} {record.service_info?.service_group}
+                </p>
+                <p className="text-xs text-muted">
+                  {record.service_info?.scheduled_date}
+                  {record.signed_in_at && (
+                    <> · In: {new Date(record.signed_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>
+                  )}
+                  {record.signed_out_at && (
+                    <> → Out: {new Date(record.signed_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {record.is_backdated && <Badge variant="warning">BD</Badge>}
+                {record.is_offline_record && <Badge variant="info">OFF</Badge>}
+                <Badge variant={record.is_valid ? 'success' : 'danger'}>
+                  {record.is_valid ? 'Valid' : 'Invalid'}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { hasRole, hasPermission } = useAuth();
@@ -272,12 +383,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </Card>
 
-          <Card variant="glass">
-            <h2 className="text-lg font-semibold mb-2">Attendance History</h2>
-            <p className="text-sm text-muted">
-              A student-scoped attendance endpoint is needed to render complete history here without over-fetching every service.
-            </p>
-          </Card>
+          <AttendanceHistoryCard studentId={id} />
         </div>
 
         <aside className="space-y-6">
