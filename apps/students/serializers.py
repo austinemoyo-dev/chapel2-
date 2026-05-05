@@ -210,3 +210,24 @@ class PublicStudentLookupSerializer(serializers.ModelSerializer):
             'id', 'system_id', 'full_name', 'department', 'level',
             'service_group', 'face_registered', 'is_active', 'duplicate_flag', 'semester'
         ]
+
+
+class StudentAttendancePortalSerializer(serializers.Serializer):
+    """Response serializer for the public student attendance portal."""
+    student_id = serializers.UUIDField()
+    full_name = serializers.CharField()
+    department = serializers.CharField()
+    level = serializers.CharField()
+    service_group = serializers.CharField(allow_null=True)
+    semester_name = serializers.CharField()
+
+    # Attendance summary
+    percentage = serializers.FloatField()
+    valid_count = serializers.IntegerField()
+    total_required = serializers.IntegerField()
+    excused_count = serializers.IntegerField()
+    below_threshold = serializers.BooleanField()
+
+    # Service-by-service breakdown
+    services = serializers.ListField(child=serializers.DictField())
+

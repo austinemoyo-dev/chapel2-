@@ -263,3 +263,300 @@ class ExportExcelView(APIView):
             f'attachment; filename="attendance_report_{semester.name.replace(" ", "_")}.xlsx"'
         )
         return response
+
+
+class DashboardStatsView(APIView):
+    """
+    GET /api/reports/dashboard-stats/
+
+    Returns aggregated stats for admin dashboard charts:
+    - Attendance by day (last 14 days)
+    - Service group distribution
+    - Sign-in time histogram (hourly buckets)
+    - Weekly trend (last 8 weeks)
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from collections import defaultdict
+        from apps.attendance.models import AttendanceRecord
+        from apps.services.models import Service
+
+        semester = Semester.objects.filter(is_active=True).first()
+        if not semester:
+            return Response({'error': 'No active semester.'}, status=400)
+
+        now = timezone.now()
+
+        # ── Attendance by day (last 14 days) ──
+        fourteen_ago = now - timedelta(days=14)
+        daily_records = (
+            AttendanceRecord.objects
+            .filter(
+                service__semester=semester,
+                signed_in_at__gte=fourteen_ago,
+                is_valid=True,
+            )
+            .values_list('signed_in_at', flat=True)
+        )
+        daily_counts = defaultdict(int)
+        for ts in daily_records:
+            daily_counts[ts.strftime('%Y-%m-%d')] += 1
+
+        # Fill in missing days with 0
+        attendance_by_day = []
+        for i in range(14):
+            day = (now - timedelta(days=13 - i)).strftime('%Y-%m-%d')
+            attendance_by_day.append({'date': day, 'count': daily_counts.get(day, 0)})
+
+        # ── Service group distribution ──
+        group_distribution = {}
+        for group_code in ['S1', 'S2', 'S3']:
+            group_distribution[group_code] = Student.objects.filter(
+                semester=semester, service_group=group_code, is_active=True
+            ).count()
+
+        # ── Sign-in time histogram (hourly buckets) ──
+        all_signins = (
+            AttendanceRecord.objects
+            .filter(service__semester=semester, is_valid=True)
+            .values_list('signed_in_at', flat=True)
+        )
+        hourly_counts = defaultdict(int)
+        for ts in all_signins:
+            hourly_counts[ts.hour] += 1
+        signin_histogram = [
+            {'hour': h, 'count': hourly_counts.get(h, 0)}
+            for h in range(6, 22)  # 6 AM to 10 PM
+        ]
+
+        # ── Weekly trend (last 8 weeks) ──
+        weekly_trend = []
+        for w in range(7, -1, -1):
+            week_start = now - timedelta(weeks=w + 1)
+            week_end = now - timedelta(weeks=w)
+            week_valid = AttendanceRecord.objects.filter(
+                service__semester=semester,
+                signed_in_at__gte=week_start,
+                signed_in_at__lt=week_end,
+                is_valid=True,
+            ).count()
+            week_total = AttendanceRecord.objects.filter(
+                service__semester=semester,
+                signed_in_at__gte=week_start,
+                signed_in_at__lt=week_end,
+            ).count()
+            pct = (week_valid / week_total * 100) if week_total > 0 else 0
+            weekly_trend.append({
+                'week': week_end.strftime('%Y-%m-%d'),
+                'valid': week_valid,
+                'total': week_total,
+                'percentage': round(pct, 1),
+            })
+
+        return Response({
+            'attendance_by_day': attendance_by_day,
+            'group_distribution': group_distribution,
+            'signin_histogram': signin_histogram,
+            'weekly_trend': weekly_trend,
+        })
+
+
+class SemesterComparisonView(APIView):
+    """
+    GET /api/reports/semester-comparison/
+
+    Returns attendance summary for all semesters for cross-semester analytics.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from apps.services.models import Service
+        from apps.attendance.models import AttendanceRecord
+        from django.db.models import Q, Avg
+
+        semesters = Semester.objects.all().order_by('start_date')
+        comparison = []
+
+        for sem in semesters:
+            total_students = Student.objects.filter(semester=sem, is_active=True).count()
+            total_services = Service.objects.filter(
+                semester=sem, is_cancelled=False
+            ).count()
+
+            # Calculate avg attendance percentage across all students
+            students = Student.objects.filter(semester=sem, is_active=True)
+            if total_students > 0 and total_services > 0:
+                total_valid = AttendanceRecord.objects.filter(
+                    service__semester=sem, is_valid=True
+                ).count()
+                avg_pct = (total_valid / (total_students * total_services)) * 100 if total_students * total_services > 0 else 0
+                below_count = 0
+                for student in students:
+                    pct = calculate_attendance_percentage(student, sem.id)
+                    if pct['below_threshold']:
+                        below_count += 1
+            else:
+                avg_pct = 0
+                below_count = 0
+
+            comparison.append({
+                'semester_id': str(sem.id),
+                'name': sem.name,
+                'start_date': str(sem.start_date),
+                'end_date': str(sem.end_date),
+                'is_active': sem.is_active,
+                'total_students': total_students,
+                'total_services': total_services,
+                'avg_percentage': round(avg_pct, 1),
+                'below_threshold_count': below_count,
+            })
+
+        return Response({
+            'semesters': comparison,
+            'total_semesters': len(comparison),
+        })
+
+
+class StudentTrendView(APIView):
+    """
+    GET /api/reports/student-trend/?student_id=<uuid>
+
+    Returns per-semester attendance data for a specific student.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({'error': 'student_id is required.'}, status=400)
+
+        # Find all student records across semesters (same matric/phone)
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=404)
+
+        # Find same student across semesters by matric or phone
+        from django.db.models import Q
+        match_q = Q(phone_number=student.phone_number)
+        if student.matric_number:
+            match_q |= Q(matric_number=student.matric_number)
+
+        all_records = Student.objects.filter(match_q).select_related('semester').order_by('semester__start_date')
+
+        trend = []
+        for s in all_records:
+            pct = calculate_attendance_percentage(s, s.semester_id)
+            trend.append({
+                'semester_id': str(s.semester_id),
+                'semester_name': s.semester.name,
+                'percentage': pct['percentage'],
+                'valid_count': pct['valid_count'],
+                'total_required': pct['total_required'],
+                'below_threshold': pct['below_threshold'],
+            })
+
+        return Response({
+            'student_name': student.full_name,
+            'trend': trend,
+        })
+
+
+class ScanMetricsView(APIView):
+    """
+    GET /api/reports/scan-metrics/<service_id>/
+
+    Computes scan speed metrics for a specific service:
+    - Total scans
+    - Avg time between scans per protocol member
+    - Scans per 5-minute bucket over time
+    - Per-protocol-member breakdown
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request, service_id):
+        from collections import defaultdict
+        from apps.attendance.models import AttendanceRecord
+        from apps.services.models import Service
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response({'error': 'Service not found.'}, status=404)
+
+        records = (
+            AttendanceRecord.objects
+            .filter(service=service)
+            .select_related('protocol_member')
+            .order_by('signed_in_at')
+        )
+
+        total_scans = records.count()
+        if total_scans == 0:
+            return Response({
+                'service_id': str(service_id),
+                'total_scans': 0,
+                'avg_scans_per_minute': 0,
+                'timeline': [],
+                'per_member': [],
+            })
+
+        # ── Per-member breakdown ──
+        member_records = defaultdict(list)
+        for r in records:
+            member_name = r.protocol_member.full_name if r.protocol_member else 'Unknown'
+            member_records[member_name].append(r.signed_in_at)
+
+        per_member = []
+        for name, timestamps in member_records.items():
+            timestamps.sort()
+            gaps = []
+            for i in range(1, len(timestamps)):
+                gap = (timestamps[i] - timestamps[i - 1]).total_seconds()
+                gaps.append(gap)
+            avg_gap = sum(gaps) / len(gaps) if gaps else 0
+            per_member.append({
+                'name': name,
+                'scan_count': len(timestamps),
+                'avg_gap_seconds': round(avg_gap, 1),
+            })
+        per_member.sort(key=lambda x: x['scan_count'], reverse=True)
+
+        # ── Timeline (5-min buckets) ──
+        all_timestamps = list(records.values_list('signed_in_at', flat=True))
+        if all_timestamps:
+            first = min(all_timestamps)
+            last = max(all_timestamps)
+            total_minutes = max((last - first).total_seconds() / 60, 1)
+            avg_scans_per_minute = round(total_scans / total_minutes, 2)
+
+            # Build 5-min buckets
+            timeline = []
+            bucket_counts = defaultdict(int)
+            for ts in all_timestamps:
+                # Round down to 5-min bucket
+                bucket = ts.replace(
+                    minute=(ts.minute // 5) * 5,
+                    second=0,
+                    microsecond=0,
+                )
+                bucket_counts[bucket.isoformat()] += 1
+
+            for bucket_key in sorted(bucket_counts.keys()):
+                timeline.append({
+                    'time': bucket_key,
+                    'count': bucket_counts[bucket_key],
+                })
+        else:
+            avg_scans_per_minute = 0
+            timeline = []
+
+        return Response({
+            'service_id': str(service_id),
+            'total_scans': total_scans,
+            'avg_scans_per_minute': avg_scans_per_minute,
+            'timeline': timeline,
+            'per_member': per_member,
+        })
+

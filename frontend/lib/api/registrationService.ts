@@ -94,6 +94,31 @@ export interface MatricUpdateRequest {
   matric_number: string;
 }
 
+export interface AttendanceServiceRecord {
+  service_name: string;
+  service_type: string;
+  scheduled_date: string;
+  signed_in_at: string | null;
+  signed_out_at: string | null;
+  is_valid: boolean;
+  status: 'valid' | 'missed' | 'excused' | 'invalid';
+}
+
+export interface StudentAttendancePortalResponse {
+  student_id: string;
+  full_name: string;
+  department: string;
+  level: string;
+  service_group: string | null;
+  semester_name: string;
+  percentage: number;
+  valid_count: number;
+  total_required: number;
+  excused_count: number;
+  below_threshold: boolean;
+  services: AttendanceServiceRecord[];
+}
+
 // --- API Calls ---
 
 export const registrationService = {
@@ -135,4 +160,9 @@ export const registrationService = {
   /** GET /api/registration/lookup/ — Public student service group and status lookup */
   lookupStudent: (identifier: string) =>
     api.get<PublicStudentLookupResponse>(`/api/registration/lookup/?identifier=${encodeURIComponent(identifier)}`),
+
+  /** GET /api/registration/my-attendance/ — Public student attendance portal */
+  getMyAttendance: (identifier: string) =>
+    api.get<StudentAttendancePortalResponse>(`/api/registration/my-attendance/?identifier=${encodeURIComponent(identifier)}`),
 };
+

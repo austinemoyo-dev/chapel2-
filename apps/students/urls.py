@@ -9,6 +9,7 @@ from .views import (
     FaceStatusView,
     MatricUpdateView,
     StudentLookupView,
+    StudentAttendancePortalView,
 )
 
 urlpatterns = [
@@ -19,4 +20,6 @@ urlpatterns = [
     path('face-status/', FaceStatusView.as_view(), name='registration-face-status'),
     path('update-matric/', MatricUpdateView.as_view(), name='registration-update-matric'),
     path('lookup/', StudentLookupView.as_view(), name='registration-lookup'),
+    path('my-attendance/', StudentAttendancePortalView.as_view(), name='student-attendance-portal'),
 ]
+

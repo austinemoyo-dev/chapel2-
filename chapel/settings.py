@@ -170,6 +170,8 @@ REST_FRAMEWORK = {
         # Tight throttle for computationally expensive face processing endpoints.
         # Applied explicitly on FaceSampleUploadView and SignInView.
         'face_upload': '5/minute',
+        # Public student attendance portal — prevents abuse.
+        'portal_lookup': '10/minute',
     },
 }
 

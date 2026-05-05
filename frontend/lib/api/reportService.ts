@@ -67,4 +67,62 @@ export const reportService = {
     const qs = params.toString();
     return api.download(`/api/reports/export/excel/${qs ? `?${qs}` : ''}`);
   },
+
+  getDashboardStats: () =>
+    api.get<DashboardStats>('/api/reports/dashboard-stats/'),
+
+  getSemesterComparison: () =>
+    api.get<SemesterComparison>('/api/reports/semester-comparison/'),
+
+  getStudentTrend: (studentId: string) =>
+    api.get<StudentTrend>(`/api/reports/student-trend/?student_id=${studentId}`),
+
+  getScanMetrics: (serviceId: string) =>
+    api.get<ScanMetrics>(`/api/reports/scan-metrics/${serviceId}/`),
 };
+
+// --- Dashboard Stats Types ---
+export interface DashboardStats {
+  attendance_by_day: { date: string; count: number }[];
+  group_distribution: Record<string, number>;
+  signin_histogram: { hour: number; count: number }[];
+  weekly_trend: { week: string; valid: number; total: number; percentage: number }[];
+}
+
+export interface SemesterComparisonEntry {
+  semester_id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  total_students: number;
+  total_services: number;
+  avg_percentage: number;
+  below_threshold_count: number;
+}
+
+export interface SemesterComparison {
+  semesters: SemesterComparisonEntry[];
+  total_semesters: number;
+}
+
+export interface StudentTrend {
+  student_name: string;
+  trend: {
+    semester_id: string;
+    semester_name: string;
+    percentage: number;
+    valid_count: number;
+    total_required: number;
+    below_threshold: boolean;
+  }[];
+}
+
+export interface ScanMetrics {
+  service_id: string;
+  total_scans: number;
+  avg_scans_per_minute: number;
+  timeline: { time: string; count: number }[];
+  per_member: { name: string; scan_count: number; avg_gap_seconds: number }[];
+}
+

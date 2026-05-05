@@ -9,6 +9,7 @@ This is the core attendance engine implementing:
 5. Manual edit and late resumption backdating
 """
 import logging
+from datetime import timedelta
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import status, generics
@@ -34,7 +35,7 @@ from .utils import (
     calculate_attendance_percentage,
     get_service_embeddings,
 )
-from apps.accounts.permissions import IsSuperadmin, IsProtocolMember, IsProtocolMemberOrAbove, IsAdminOrAbove
+from apps.accounts.permissions import IsSuperadmin, IsProtocolMember, IsProtocolMemberOrAbove, IsAdminOrAbove, HasAdminPermission
 from apps.services.models import Service
 from apps.students.models import Student
 from apps.audit.utils import log_action
@@ -597,11 +598,12 @@ class AttendanceEditView(APIView):
     """
     PATCH /api/attendance/{id}/edit/
     
-    Manual attendance edit by Superadmin.
+    Manual attendance edit by Superadmin or Admin with 'can_edit_attendance' permission.
     Requires mandatory reason_note.
     Used for appeals and corrections.
     """
-    permission_classes = [IsSuperadmin]
+    permission_classes = [HasAdminPermission]
+    required_permission = 'can_edit_attendance'
 
     @transaction.atomic
     def patch(self, request, id):
@@ -753,3 +755,89 @@ class BackdateView(APIView):
             'backdate_type': backdate_type,
             'updated_percentage': percentage_data,
         })
+
+
+class StudentAttendanceListView(generics.ListAPIView):
+    """
+    GET /api/attendance/student/<student_id>/
+
+    Get all attendance records for a specific student across all services.
+    Admin or above only. Used by the Corrections UI.
+    """
+    serializer_class = AttendanceRecordSerializer
+    permission_classes = [IsAdminOrAbove]
+
+    def get_queryset(self):
+        student_id = self.kwargs['student_id']
+        return AttendanceRecord.objects.filter(
+            student_id=student_id
+        ).select_related('student', 'service', 'protocol_member').order_by('-signed_in_at')
+
+
+class ActiveScannersView(APIView):
+    """
+    GET /api/attendance/active-scanners/<service_id>/
+
+    Returns all protocol members who have scanned in the last 5 minutes
+    for a specific service. Used by the Multi-Device Sync Dashboard.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request, service_id):
+        from collections import defaultdict
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response(
+                {'error': 'Service not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        five_min_ago = timezone.now() - timedelta(minutes=5)
+
+        recent_records = (
+            AttendanceRecord.objects
+            .filter(service=service, signed_in_at__gte=five_min_ago)
+            .select_related('protocol_member')
+            .order_by('-signed_in_at')
+        )
+
+        # Group by protocol member
+        member_data = defaultdict(lambda: {
+            'scan_count': 0,
+            'last_scan_at': None,
+            'gps_lat': None,
+            'gps_lng': None,
+            'device_id': '',
+        })
+
+        for record in recent_records:
+            member_name = record.protocol_member.full_name if record.protocol_member else 'Unknown'
+            data = member_data[member_name]
+            data['scan_count'] += 1
+            if data['last_scan_at'] is None:
+                data['last_scan_at'] = record.signed_in_at.isoformat()
+                data['gps_lat'] = float(record.gps_lat)
+                data['gps_lng'] = float(record.gps_lng)
+                data['device_id'] = record.device_id
+
+        scanners = [
+            {
+                'protocol_member_name': name,
+                'device_id': info['device_id'],
+                'scan_count': info['scan_count'],
+                'last_scan_at': info['last_scan_at'],
+                'gps_lat': info['gps_lat'],
+                'gps_lng': info['gps_lng'],
+            }
+            for name, info in member_data.items()
+        ]
+        scanners.sort(key=lambda x: x['scan_count'], reverse=True)
+
+        return Response({
+            'service_id': str(service_id),
+            'active_scanners': scanners,
+            'total_active': len(scanners),
+        })
+

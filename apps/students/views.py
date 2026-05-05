@@ -875,3 +875,129 @@ class MatricUpdateView(APIView):
             'matric_number': new_matric,
             'system_id': student.system_id,
         })
+
+
+# =============================================================================
+# PUBLIC: STUDENT ATTENDANCE PORTAL
+# =============================================================================
+
+class PortalLookupThrottle(AnonRateThrottle):
+    """10 requests/minute per IP for attendance portal lookups."""
+    scope = 'portal_lookup'
+
+
+class StudentAttendancePortalView(APIView):
+    """
+    GET /api/registration/my-attendance/?identifier=<matric_or_phone>
+
+    Public endpoint for students to view their attendance history.
+    Returns: attendance percentage, service-by-service breakdown, and summary.
+    Rate-limited to 10 requests/minute per IP.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [PortalLookupThrottle]
+
+    def get(self, request):
+        from django.db.models import Q
+        from apps.services.models import Service
+        from apps.attendance.models import AttendanceRecord
+        from apps.attendance.utils import calculate_attendance_percentage
+
+        identifier = request.query_params.get('identifier')
+        if not identifier:
+            return Response(
+                {'error': 'Please provide your Matric Number or Phone Number.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        identifier = identifier.strip()
+
+        # Only active semester
+        semester = Semester.objects.filter(is_active=True).first()
+        if not semester:
+            return Response(
+                {'error': 'No active semester found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        student = Student.objects.filter(
+            semester=semester
+        ).filter(
+            Q(matric_number__iexact=identifier) |
+            Q(system_id__iexact=identifier) |
+            Q(phone_number=identifier)
+        ).first()
+
+        if not student:
+            return Response(
+                {'error': 'Student not found. Please check your Matric Number or Phone Number.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Calculate attendance percentage
+        pct_data = calculate_attendance_percentage(student, semester.id)
+
+        # Get all non-cancelled services applicable to this student
+        applicable_services = Service.objects.filter(
+            semester=semester,
+            is_cancelled=False,
+        ).filter(
+            Q(service_group=student.service_group) | Q(service_group='all')
+        ).order_by('scheduled_date', 'window_open_time')
+
+        # Get all attendance records for this student in this semester
+        records = {
+            str(r.service_id): r
+            for r in AttendanceRecord.objects.filter(
+                student=student,
+                service__semester=semester,
+            ).select_related('service')
+        }
+
+        # Build service-by-service breakdown
+        services_breakdown = []
+        for svc in applicable_services:
+            record = records.get(str(svc.id))
+            if record:
+                if record.is_backdated and record.backdate_type == 'excused':
+                    svc_status = 'excused'
+                elif record.is_valid:
+                    svc_status = 'valid'
+                else:
+                    svc_status = 'invalid'
+
+                services_breakdown.append({
+                    'service_name': svc.name or f'{svc.service_type} {svc.service_group}',
+                    'service_type': svc.service_type,
+                    'scheduled_date': str(svc.scheduled_date),
+                    'signed_in_at': record.signed_in_at.isoformat() if record.signed_in_at else None,
+                    'signed_out_at': record.signed_out_at.isoformat() if record.signed_out_at else None,
+                    'is_valid': record.is_valid,
+                    'status': svc_status,
+                })
+            else:
+                services_breakdown.append({
+                    'service_name': svc.name or f'{svc.service_type} {svc.service_group}',
+                    'service_type': svc.service_type,
+                    'scheduled_date': str(svc.scheduled_date),
+                    'signed_in_at': None,
+                    'signed_out_at': None,
+                    'is_valid': False,
+                    'status': 'missed',
+                })
+
+        return Response({
+            'student_id': str(student.id),
+            'full_name': student.full_name,
+            'department': student.department,
+            'level': student.level,
+            'service_group': student.service_group,
+            'semester_name': semester.name,
+            'percentage': pct_data['percentage'],
+            'valid_count': pct_data['valid_count'],
+            'total_required': pct_data['total_required'],
+            'excused_count': pct_data['excused_count'],
+            'below_threshold': pct_data['below_threshold'],
+            'services': services_breakdown,
+        })
+

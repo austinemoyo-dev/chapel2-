@@ -85,4 +85,24 @@ export const adminService = {
     api.post<{ message: string; created_records: string[]; skipped_services: { service_id: string; reason: string }[] }>(
       '/api/attendance/backdate/', data
     ),
+
+  // Get all attendance records for a specific student
+  getStudentAttendance: (studentId: string) =>
+    api.get<{ results: AttendanceRecord[] }>(`/api/attendance/student/${studentId}/`),
+
+  // Get active scanners for a service
+  getActiveScanners: (serviceId: string) =>
+    api.get<{
+      service_id: string;
+      active_scanners: {
+        protocol_member_name: string;
+        device_id: string;
+        scan_count: number;
+        last_scan_at: string;
+        gps_lat: number;
+        gps_lng: number;
+      }[];
+      total_active: number;
+    }>(`/api/attendance/active-scanners/${serviceId}/`),
 };
+
