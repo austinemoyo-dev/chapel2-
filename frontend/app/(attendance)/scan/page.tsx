@@ -26,7 +26,7 @@ type ResultType = 'success' | 'already_marked' | 'failed' | 'offline_unavailable
 export default function ScanPage() {
   const { user, logout } = useAuth();
   const { addToast } = useToast();
-  const { videoRef, canvasRef, overlayRef, start, stop, captureFrame, isActive, analyzeFrame, modelsLoaded } = useCamera({
+  const { videoRef, canvasRef, overlayRef, start, stop, captureFrame, isActive, analyzeFrame, modelsLoaded, availableCameras, activeCameraId, switchCamera } = useCamera({
     facingMode: 'environment',
     width: 640,
     height: 480,
@@ -699,6 +699,34 @@ export default function ScanPage() {
           <span className="text-foreground text-xs font-bold uppercase tracking-wider">{mode === 'sign_in' ? 'Sign In Mode' : 'Sign Out Mode'}</span>
         </div>
       </div>
+
+      {/* Camera Picker — only show when multiple cameras detected */}
+      {availableCameras.length > 1 && (
+        <div className="absolute top-[7.5rem] inset-x-0 flex justify-center z-20">
+          <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden pointer-events-auto">
+            <div className="flex items-center gap-1 p-1">
+              {availableCameras.map((cam, i) => (
+                <button
+                  key={cam.deviceId}
+                  onClick={() => void switchCamera(cam.deviceId)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold
+                             transition-all duration-200 whitespace-nowrap
+                             ${activeCameraId === cam.deviceId
+                               ? 'bg-primary text-white shadow-sm'
+                               : 'text-muted hover:text-foreground hover:bg-surface-2'}`}
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {cam.label.length > 20 ? `Camera ${i + 1}` : cam.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Liveness Challenge Overlay */}
       {phase === 'liveness' && livenessChallenge && (

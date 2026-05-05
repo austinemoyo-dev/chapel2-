@@ -383,7 +383,7 @@ function FaceCaptureInner() {
           Please allow camera access in your browser settings to complete face registration.
         </p>
         <button
-          onClick={start}
+          onClick={() => start()}
           className="mt-4 px-6 py-2.5 rounded-xl bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
         >
           Try Again

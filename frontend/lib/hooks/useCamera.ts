@@ -13,8 +13,14 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { getFaceLandmarker } from '@/lib/mediapipe';
 
+export interface CameraDevice {
+  deviceId: string;
+  label: string;
+}
+
 export interface CameraOptions {
   facingMode?: 'user' | 'environment';
+  deviceId?: string;
   width?: number;
   height?: number;
   autoStart?: boolean;
@@ -71,6 +77,8 @@ export function useCamera(options: CameraOptions = {}) {
   const [isActive,     setIsActive]     = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<CameraDevice[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | undefined>(options.deviceId);
 
   // Pre-warm MediaPipe on mount so the first analyzeFrame call is fast.
   useEffect(() => {
@@ -81,18 +89,52 @@ export function useCamera(options: CameraOptions = {}) {
     return () => { active = false; };
   }, []);
 
-  const start = useCallback(async () => {
+  // Enumerate available cameras
+  const enumerateCameras = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices
+        .filter(d => d.kind === 'videoinput')
+        .map((d, i) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Camera ${i + 1}`,
+        }));
+      setAvailableCameras(videoDevices);
+      return videoDevices;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const start = useCallback(async (overrideDeviceId?: string) => {
     try {
       setError(null);
+      const targetDeviceId = overrideDeviceId || activeCameraId;
+
+      // Build video constraints — prefer exact deviceId if provided
+      const videoConstraints: MediaTrackConstraints = {
+        width:  { ideal: options.width  || 640 },
+        height: { ideal: options.height || 480 },
+      };
+      if (targetDeviceId) {
+        videoConstraints.deviceId = { exact: targetDeviceId };
+      } else {
+        videoConstraints.facingMode = options.facingMode || 'user';
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: options.facingMode || 'user',
-          width:  { ideal: options.width  || 640 },
-          height: { ideal: options.height || 480 },
-        },
+        video: videoConstraints,
         audio: false,
       });
       streamRef.current = stream;
+
+      // Track which camera is actually active
+      const activeTrack = stream.getVideoTracks()[0];
+      if (activeTrack) {
+        const settings = activeTrack.getSettings();
+        if (settings.deviceId) setActiveCameraId(settings.deviceId);
+      }
+
       if (videoRef.current) {
         // Enforce muted and playsInline at the DOM level for strict mobile browsers
         videoRef.current.muted = true;
@@ -107,11 +149,28 @@ export function useCamera(options: CameraOptions = {}) {
         videoRef.current.play().catch(e => console.error("Initial play failed", e));
       }
       setIsActive(true);
+
+      // Enumerate cameras after first getUserMedia (labels are available now)
+      await enumerateCameras();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Camera access denied');
       setIsActive(false);
     }
-  }, [options.facingMode, options.width, options.height]);
+  }, [options.facingMode, options.width, options.height, activeCameraId, enumerateCameras]);
+
+  // Switch to a specific camera by deviceId
+  const switchCamera = useCallback(async (newDeviceId: string) => {
+    // Stop existing stream
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    prevNosePosRef.current = null;
+    stableCountRef.current = 0;
+
+    setActiveCameraId(newDeviceId);
+    // Restart with new device
+    await start(newDeviceId);
+  }, [start]);
 
   // Auto-attach stream to video element when it becomes available
   // This fixes the race condition where the video element mounts AFTER the stream is fetched
@@ -319,5 +378,6 @@ export function useCamera(options: CameraOptions = {}) {
     videoRef, canvasRef, overlayRef,
     isActive, error, modelsLoaded,
     start, stop, captureFrame, analyzeFrame,
+    availableCameras, activeCameraId, switchCamera, enumerateCameras,
   };
 }
