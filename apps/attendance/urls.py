@@ -13,6 +13,8 @@ from .views import (
     BackdateView,
     StudentAttendanceListView,
     ActiveScannersView,
+    ManualAttendanceView,
+    BulkAttendanceView,
 )
 
 urlpatterns = [
@@ -29,4 +31,7 @@ urlpatterns = [
     path('backdate/', BackdateView.as_view(), name='attendance-backdate'),
     path('student/<uuid:student_id>/', StudentAttendanceListView.as_view(), name='attendance-student-list'),
     path('active-scanners/<uuid:service_id>/', ActiveScannersView.as_view(), name='attendance-active-scanners'),
+    path('manual-sign-in/', ManualAttendanceView.as_view(), name='attendance-manual-sign-in'),
+    path('bulk-mark/', BulkAttendanceView.as_view(), name='attendance-bulk-mark'),
 ]
+

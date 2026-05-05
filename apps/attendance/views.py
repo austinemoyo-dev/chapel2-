@@ -25,6 +25,8 @@ from .serializers import (
     AttendanceRecordSerializer,
     AttendanceEditSerializer,
     BackdateSerializer,
+    ManualSignInSerializer,
+    BulkMarkSerializer,
 )
 from .utils import (
     validate_time_window,
@@ -840,4 +842,197 @@ class ActiveScannersView(APIView):
             'active_scanners': scanners,
             'total_active': len(scanners),
         })
+
+
+class ManualAttendanceView(APIView):
+    """
+    POST /api/attendance/manual-sign-in/
+
+    Admin manual sign-in — bypasses camera, geo-fence, and device binding.
+    Used when the scanner camera is unavailable or malfunctioning.
+    Creates an attendance record with device_id='MANUAL'.
+    Requires a mandatory reason_note for the audit trail.
+    Admin or Superadmin only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = ManualSignInSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service_id = data['service_id']
+        student_id = data['student_id']
+        reason_note = data['reason_note']
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response(
+                {'error': 'Service not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if service.is_cancelled:
+            return Response(
+                {'error': 'Cannot mark attendance for a cancelled service.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            student = Student.objects.get(id=student_id, is_active=True)
+        except Student.DoesNotExist:
+            return Response(
+                {'error': 'Student not found or inactive.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            record = AttendanceRecord.objects.create(
+                student=student,
+                service=service,
+                protocol_member=request.user,
+                device_id='MANUAL',
+                gps_lat=0,
+                gps_lng=0,
+                signed_in_at=timezone.now(),
+                is_valid=True,
+                is_offline_record=False,
+            )
+        except IntegrityError:
+            return Response({
+                'error': 'Already marked for this service.',
+                'student_name': student.full_name,
+            }, status=status.HTTP_409_CONFLICT)
+
+        log_action(
+            actor=request.user,
+            action_type='ATTENDANCE_MANUAL_SIGN_IN',
+            target_type='AttendanceRecord',
+            target_id=record.id,
+            new_value={
+                'student_id': str(student.id),
+                'student_name': student.full_name,
+                'service_id': str(service.id),
+            },
+            reason_note=reason_note,
+        )
+
+        return Response({
+            'message': f'Manual sign-in recorded for {student.full_name}.',
+            'record_id': str(record.id),
+            'student_id': str(student.id),
+            'student_name': student.full_name,
+            'signed_in_at': record.signed_in_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+
+class BulkAttendanceView(APIView):
+    """
+    POST /api/attendance/bulk-mark/
+
+    Bulk-mark attendance for a service. Superadmin only.
+
+    When mark_all_active=True, fetches all active students in the service's
+    group (or all groups for 'all'-type services) and creates attendance records.
+    Students already marked are silently skipped.
+
+    Requires mandatory reason_note for audit trail.
+    """
+    permission_classes = [IsSuperadmin]
+
+    @transaction.atomic
+    def post(self, request):
+        serializer = BulkMarkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        service_id = data['service_id']
+        reason_note = data['reason_note']
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response(
+                {'error': 'Service not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if service.is_cancelled:
+            return Response(
+                {'error': 'Cannot mark attendance for a cancelled service.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Determine student set
+        if data.get('mark_all_active'):
+            qs = Student.objects.filter(
+                semester=service.semester,
+                is_active=True,
+                face_registered=True,
+            )
+            # Scope to service group unless it's an 'all' service
+            if service.service_group != 'all':
+                qs = qs.filter(service_group=service.service_group)
+            student_ids = list(qs.values_list('id', flat=True))
+        else:
+            student_ids = data.get('student_ids', [])
+
+        # Get already-marked student IDs for this service
+        already_marked = set(
+            AttendanceRecord.objects.filter(
+                service=service,
+                student_id__in=student_ids,
+            ).values_list('student_id', flat=True)
+        )
+
+        created = 0
+        skipped = len(already_marked)
+        now = timezone.now()
+
+        records_to_create = []
+        for sid in student_ids:
+            if sid in already_marked:
+                continue
+            records_to_create.append(
+                AttendanceRecord(
+                    student_id=sid,
+                    service=service,
+                    protocol_member=request.user,
+                    device_id='BULK_MARK',
+                    gps_lat=0,
+                    gps_lng=0,
+                    signed_in_at=now,
+                    is_valid=True,
+                    is_offline_record=False,
+                )
+            )
+
+        if records_to_create:
+            AttendanceRecord.objects.bulk_create(records_to_create, ignore_conflicts=True)
+            created = len(records_to_create)
+
+        log_action(
+            actor=request.user,
+            action_type='ATTENDANCE_BULK_MARK',
+            target_type='Service',
+            target_id=service.id,
+            new_value={
+                'service_id': str(service.id),
+                'created': created,
+                'skipped': skipped,
+                'total_students': len(student_ids),
+                'mark_all_active': data.get('mark_all_active', False),
+            },
+            reason_note=reason_note,
+        )
+
+        return Response({
+            'message': f'Bulk mark complete. {created} marked, {skipped} already marked.',
+            'created': created,
+            'skipped': skipped,
+            'total_students': len(student_ids),
+        })
+
 

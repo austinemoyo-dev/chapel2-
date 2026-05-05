@@ -131,4 +131,24 @@ export const attendanceService = {
   /** GET /api/attendance/embeddings/{service_id}/ — Download face embeddings */
   getEmbeddings: (serviceId: string) =>
     api.get<EmbeddingsResponse>(`/api/attendance/embeddings/${serviceId}/`),
+
+  /** POST /api/attendance/manual-sign-in/ — Admin manual sign-in */
+  manualSignIn: (data: { service_id: string; student_id: string; reason_note: string }) =>
+    api.post<{ message: string; record_id: string; student_id: string; student_name: string; signed_in_at: string }>(
+      '/api/attendance/manual-sign-in/',
+      data,
+    ),
+
+  /** POST /api/attendance/bulk-mark/ — Bulk mark attendance */
+  bulkMark: (data: {
+    service_id: string;
+    student_ids?: string[];
+    mark_all_active?: boolean;
+    reason_note: string;
+  }) =>
+    api.post<{ message: string; created: number; skipped: number; total_students: number }>(
+      '/api/attendance/bulk-mark/',
+      data,
+    ),
 };
+

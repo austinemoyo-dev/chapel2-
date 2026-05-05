@@ -28,8 +28,8 @@ export default function ScanPage() {
   const { addToast } = useToast();
   const { videoRef, canvasRef, overlayRef, start, stop, captureFrame, isActive, analyzeFrame, modelsLoaded, availableCameras, activeCameraId, switchCamera } = useCamera({
     facingMode: 'environment',
-    width: 640,
-    height: 480,
+    width: 1280,
+    height: 720,
   });
   const geo = useGeolocation();
   const deviceId = useDeviceId();
@@ -644,12 +644,12 @@ export default function ScanPage() {
 
   return (
     <div className="h-dvh flex flex-col relative bg-surface overflow-hidden">
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-80" />
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Light frosted mask with glowing oval */}
-      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center backdrop-blur-sm" style={{ paddingTop: '5%' }}>
+      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs>
             <mask id="faceMask">

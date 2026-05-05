@@ -112,9 +112,16 @@ export function useCamera(options: CameraOptions = {}) {
       const targetDeviceId = overrideDeviceId || activeCameraId;
 
       // Build video constraints — prefer exact deviceId if provided
+      // Request continuous autofocus to prevent blurry feeds on mobile cameras.
+      // The 'advanced' syntax is silently ignored by browsers that don't support it.
       const videoConstraints: MediaTrackConstraints = {
         width:  { ideal: options.width  || 640 },
         height: { ideal: options.height || 480 },
+        // focusMode is a valid WebRTC constraint on Android/iOS but not in TS DOM types
+        ...({ focusMode: 'continuous' } as Record<string, unknown>),
+        advanced: [
+          { focusMode: 'continuous' } as MediaTrackConstraintSet,
+        ],
       };
       if (targetDeviceId) {
         videoConstraints.deviceId = { exact: targetDeviceId };

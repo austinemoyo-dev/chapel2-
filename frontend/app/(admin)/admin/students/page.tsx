@@ -90,6 +90,8 @@ export default function StudentsPage() {
   const [facultyFilter, setFacultyFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const canAdd = hasRole(ROLES.SUPERADMIN) || hasPermission(ADMIN_PERMISSIONS.ADD_STUDENTS);
 
@@ -99,6 +101,7 @@ export default function StudentsPage() {
     if (search) params.search = search;
     if (statusFilter === 'active') params.is_active = 'true';
     if (statusFilter === 'inactive') params.is_active = 'false';
+    if (statusFilter === 'incomplete') params.face_registered = 'false';
     if (levelFilter) params.level = levelFilter;
     if (facultyFilter) params.faculty = facultyFilter;
     if (departmentFilter) params.department = departmentFilter;
@@ -164,6 +167,22 @@ export default function StudentsPage() {
     }
   }
 
+  async function handleDeleteStudent() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await adminService.deleteStudent(deleteTarget.id);
+      setStudents((prev) => prev.filter((s) => s.id !== deleteTarget.id));
+      setTotal((prev) => prev - 1);
+      addToast(`${deleteTarget.full_name} removed. Constraint slot freed.`, 'success');
+      setDeleteTarget(null);
+    } catch {
+      addToast('Failed to delete student', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between gap-3">
@@ -200,7 +219,8 @@ export default function StudentsPage() {
               options={[
                 { value: 'all', label: 'All Statuses' },
                 { value: 'active', label: 'Active' },
-                { value: 'inactive', label: 'Inactive' }
+                { value: 'inactive', label: 'Inactive' },
+                { value: 'incomplete', label: '👻 Incomplete (No Face)' },
               ]}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -256,11 +276,11 @@ export default function StudentsPage() {
           {students.map((student) => {
             const photoUrl = getProfilePhotoUrl(student.profile_photo);
             return (
-              <a
+              <div
                 key={student.id}
-                href={`/admin/students/${student.id}`}
                 className="group relative block p-5 rounded-3xl glass-card card-lift border border-white/40 hover:border-primary/40 transition-all duration-300 overflow-hidden"
               >
+                <a href={`/admin/students/${student.id}`} className="absolute inset-0 z-0" />
                 <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 
                 <div className="relative flex flex-col gap-4">
@@ -294,9 +314,30 @@ export default function StudentsPage() {
                     <p className="text-xs text-muted/80 mt-1 line-clamp-1" title={student.department}>
                       {student.level ? `${student.level} Lvl · ` : ''}{student.department}
                     </p>
+                    {student.phone_number && (
+                      <p className="text-xs text-muted/80 mt-0.5">📱 {student.phone_number}</p>
+                    )}
                   </div>
+
+                  {/* Ghost record actions */}
+                  {statusFilter === 'incomplete' && (
+                    <div className="relative z-10 flex gap-2 pt-2 border-t border-border">
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(student.phone_number || ''); addToast('Phone number copied!', 'success'); }}
+                        className="flex-1 py-1.5 px-3 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        📋 Copy Phone
+                      </button>
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget(student); }}
+                        className="flex-1 py-1.5 px-3 text-xs font-medium rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </a>
+              </div>
             );
           })}
           {students.length === 0 && (
@@ -350,6 +391,28 @@ export default function StudentsPage() {
             <Select id="add-gender" label="Gender" options={GENDERS.map((gender) => ({ value: gender, label: gender.charAt(0).toUpperCase() + gender.slice(1) }))} value={form.gender} onChange={(e) => setForm((current) => ({ ...current, gender: e.target.value }))} />
           </div>
           <Button className="w-full" loading={adding} onClick={() => void handleAddStudent()}>Add Student</Button>
+        </div>
+      </Modal>
+
+      {/* Delete ghost record confirmation */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Incomplete Registration" className="glass-panel backdrop-blur-md">
+        <div className="space-y-4">
+          <div className="bg-warning-muted border border-warning/20 rounded-xl p-3 text-sm">
+            <p className="font-medium text-warning mb-1">⚠️ This will permanently delete this registration</p>
+            <p className="text-muted">This will free up the matric/phone number so the student can re-register. This action cannot be undone.</p>
+          </div>
+          {deleteTarget && (
+            <div className="bg-surface-2 rounded-xl p-3 text-sm space-y-1">
+              <p><span className="text-muted">Name:</span> <strong>{deleteTarget.full_name}</strong></p>
+              <p><span className="text-muted">Matric:</span> {deleteTarget.matric_number || 'N/A'}</p>
+              <p><span className="text-muted">Phone:</span> {deleteTarget.phone_number}</p>
+              <p><span className="text-muted">Registered:</span> {new Date(deleteTarget.created_at).toLocaleDateString()}</p>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="danger" className="flex-1" loading={deleting} onClick={() => void handleDeleteStudent()}>Delete Registration</Button>
+          </div>
         </div>
       </Modal>
     </div>

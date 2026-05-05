@@ -119,6 +119,8 @@ export default function ServicesPage() {
   const [bulkOpenTime, setBulkOpenTime] = useState(''); // HH:MM
   const [bulkCloseTime, setBulkCloseTime] = useState('');
   const [bulkSignout, setBulkSignout] = useState(false);
+  const [bulkSignoutOpenTime, setBulkSignoutOpenTime] = useState('');
+  const [bulkSignoutCloseTime, setBulkSignoutCloseTime] = useState('');
   const [bulkName, setBulkName] = useState('');
   const [bulkCreating, setBulkCreating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, failed: 0 });
@@ -195,6 +197,8 @@ export default function ServicesPage() {
     setBulkOpenTime('');
     setBulkCloseTime('');
     setBulkSignout(false);
+    setBulkSignoutOpenTime('');
+    setBulkSignoutCloseTime('');
     setBulkName('');
     setBulkProgress({ done: 0, total: 0, failed: 0 });
     setShowBulk(true);
@@ -224,6 +228,8 @@ export default function ServicesPage() {
           window_open_time: openDT,
           window_close_time: closeDT,
           signout_required: bulkSignout,
+          signout_open_time:  bulkSignout && bulkSignoutOpenTime  ? dateTimeToUTC(date, bulkSignoutOpenTime)  : undefined,
+          signout_close_time: bulkSignout && bulkSignoutCloseTime ? dateTimeToUTC(date, bulkSignoutCloseTime) : undefined,
         });
         created.push(svc);
         done++;
@@ -685,9 +691,19 @@ export default function ServicesPage() {
               </div>
               <Input id="bulk-name" label="Service Name (optional)" placeholder="e.g., Midweek Service" value={bulkName} onChange={(e) => setBulkName(e.target.value)} />
               <label className="flex items-center gap-3 rounded-xl bg-surface-2 border border-border px-4 py-3 text-sm cursor-pointer">
-                <input type="checkbox" checked={bulkSignout} onChange={(e) => setBulkSignout(e.target.checked)} className="rounded" />
+                <input type="checkbox" checked={bulkSignout} onChange={(e) => { setBulkSignout(e.target.checked); if (!e.target.checked) { setBulkSignoutOpenTime(''); setBulkSignoutCloseTime(''); } }} className="rounded" />
                 <div><p className="font-medium">Require Sign-out</p><p className="text-xs text-muted">Both sign-in and sign-out needed</p></div>
               </label>
+              {bulkSignout && (
+                <div className="space-y-2 pl-3 border-l-2 border-primary/20">
+                  <p className="text-xs font-semibold text-muted uppercase tracking-wider">Sign-out Window</p>
+                  <p className="text-xs text-muted">Leave blank to use the same window as sign-in.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input id="bulk-sout-open"  label="Sign-out Opens"  type="time" value={bulkSignoutOpenTime}  onChange={(e) => setBulkSignoutOpenTime(e.target.value)} />
+                    <Input id="bulk-sout-close" label="Sign-out Closes" type="time" value={bulkSignoutCloseTime} onChange={(e) => setBulkSignoutCloseTime(e.target.value)} />
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3">
                 <Button variant="secondary" className="flex-1" onClick={() => setBulkStep(2)}>← Back</Button>
                 <Button className="flex-1" disabled={!bulkOpenTime || !bulkCloseTime} onClick={() => void handleBulkCreate()}>Create {bulkDates.length} Services</Button>

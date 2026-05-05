@@ -120,3 +120,37 @@ class BackdateSerializer(serializers.Serializer):
     )
     backdate_type = serializers.ChoiceField(choices=BackdateTypeChoices.choices)
     reason_note = serializers.CharField(required=True, min_length=10)
+
+
+class ManualSignInSerializer(serializers.Serializer):
+    """
+    Serializer for admin manual sign-in — bypasses camera, geo-fence, device binding.
+    Mandatory reason_note for audit trail.
+    """
+    service_id = serializers.UUIDField()
+    student_id = serializers.UUIDField()
+    reason_note = serializers.CharField(required=True, min_length=5)
+
+
+class BulkMarkSerializer(serializers.Serializer):
+    """
+    Serializer for bulk attendance marking.
+    Either provide an explicit list of student_ids, or set mark_all_active=True
+    to mark every active (face_registered) student in the service's group.
+    """
+    service_id = serializers.UUIDField()
+    student_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        default=[],
+    )
+    mark_all_active = serializers.BooleanField(required=False, default=False)
+    reason_note = serializers.CharField(required=True, min_length=5)
+
+    def validate(self, data):
+        if not data.get('student_ids') and not data.get('mark_all_active'):
+            raise serializers.ValidationError(
+                'Either student_ids or mark_all_active=True is required.'
+            )
+        return data
+

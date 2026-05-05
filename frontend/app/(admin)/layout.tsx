@@ -76,6 +76,12 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
             d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
     </svg>
   ),
+  attendance: (
+    <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+  ),
 };
 
 const navItems: {
@@ -87,8 +93,9 @@ const navItems: {
 }[] = [
   { href: '/admin/dashboard',  label: 'Dashboard',  iconKey: 'dashboard' },
   { href: '/admin/students',   label: 'Students',   iconKey: 'students',   permission: ADMIN_PERMISSIONS.VIEW_STUDENTS },
-  { href: '/admin/services',   label: 'Services',   iconKey: 'services',   superadminOnly: true },
-  { href: '/admin/events',     label: 'Events',     iconKey: 'events',     superadminOnly: true },
+  { href: '/admin/services',    label: 'Services',    iconKey: 'services',    superadminOnly: true },
+  { href: '/admin/attendance',  label: 'Attendance',  iconKey: 'attendance',  superadminOnly: true },
+  { href: '/admin/events',      label: 'Events',      iconKey: 'events',      superadminOnly: true },
   { href: '/admin/sermons',    label: 'Sermons',    iconKey: 'sermons',    superadminOnly: true },
   { href: '/admin/users',      label: 'Users',      iconKey: 'users',      superadminOnly: true },
   { href: '/admin/duplicates', label: 'Duplicates', iconKey: 'duplicates', superadminOnly: true },

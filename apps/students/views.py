@@ -581,6 +581,10 @@ class AdminStudentListView(generics.ListAPIView):
         if duplicate_flag is not None:
             qs = qs.filter(duplicate_flag=duplicate_flag.lower() == 'true')
 
+        face_registered = self.request.query_params.get('face_registered')
+        if face_registered is not None:
+            qs = qs.filter(face_registered=face_registered.lower() == 'true')
+
         level = self.request.query_params.get('level')
         if level:
             qs = qs.filter(level=level)
