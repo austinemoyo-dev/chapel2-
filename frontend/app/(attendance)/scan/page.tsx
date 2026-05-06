@@ -90,6 +90,11 @@ export default function ScanPage() {
     }
   }, [addToast]);
 
+  // Ref pointing to the latest handleSelectService — lets the services effect
+  // call it without listing it as a dependency (which would cause the effect
+  // to re-run every time addToast or isOnline changes reference).
+  const handleSelectServiceRef = useRef<(svc: Service) => Promise<void>>(async () => {});
+
   const handleSelectService = useCallback(async (service: Service) => {
     setSelectedService(service);
     setPhase('ready');
@@ -127,15 +132,18 @@ export default function ScanPage() {
     } finally {
       setEmbeddingLoading(false);
     }
-  }, [addToast]); // stable — isOnline is read from isOnlineRef, not the closure
+  }, [addToast]); // isOnline read from ref — no re-creation on connectivity change
 
+  // Keep the ref pointing at the latest version of the callback.
+  useEffect(() => { handleSelectServiceRef.current = handleSelectService; }, [handleSelectService]);
+
+  // Load services ONCE on mount. Uses the ref so stale-closure is never an issue.
+  // Must NOT depend on handleSelectService — any change to that function would
+  // re-run this effect, re-fetch services, and flash the loading overlay again.
   useEffect(() => {
     serviceService.listServices({ is_cancelled: 'false' }).then((data) => {
       const list = Array.isArray(data) ? data : data.results || [];
       const now = new Date().toISOString();
-      // Include a service if EITHER the sign-in window OR a dedicated sign-out
-      // window is currently open. This prevents "no active service" when the
-      // sign-in window closes but sign-out marking is still required.
       const open = list.filter((s) => {
         const signInOpen  = s.window_open_time <= now && s.window_close_time >= now;
         const signOutOpen = s.signout_open_time && s.signout_close_time
@@ -143,15 +151,12 @@ export default function ScanPage() {
           : false;
         return signInOpen || signOutOpen;
       });
-      
+
       setServicesLoaded(true);
       if (open.length === 1) {
-        // Only one service active — auto-select it immediately
         setServices(open);
-        void handleSelectService(open[0]);
+        void handleSelectServiceRef.current(open[0]);
       } else if (open.length > 1) {
-        // Multiple services active — show all and require manual selection.
-        // Protocol members must choose which service they are assigned to.
         setServices(open);
       } else {
         setServices([]);
@@ -160,7 +165,7 @@ export default function ScanPage() {
       setServices([]);
       setServicesLoaded(true);
     });
-  }, [handleSelectService]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const updateCount = () => {
@@ -209,15 +214,21 @@ export default function ScanPage() {
     return undefined;
   }, [isOnline, pendingSync, syncing, handleSync]);
 
-  // When the device comes back online with a service already selected,
-  // silently refresh embeddings in the background — no overlay shown.
+  // Silently refresh embeddings when the device comes back online.
+  // Tracks the previous isOnline value so we only act on the false→true edge,
+  // not on initial mount (where isOnline may already be true).
   const selectedServiceRef = useRef(selectedService);
   useEffect(() => { selectedServiceRef.current = selectedService; }, [selectedService]);
+  const prevIsOnlineRef = useRef(isOnline);
 
   useEffect(() => {
-    if (!isOnline) return;
+    const wasOffline = !prevIsOnlineRef.current;
+    prevIsOnlineRef.current = isOnline;
+
+    if (!isOnline || !wasOffline) return; // only act on the offline→online transition
     const svc = selectedServiceRef.current;
     if (!svc) return;
+
     attendanceService.getEmbeddings(svc.id)
       .then(async (data) => {
         setEmbeddings(data.embeddings);
@@ -227,8 +238,8 @@ export default function ScanPage() {
           cached_at: new Date().toISOString(),
         });
       })
-      .catch(() => {}); // silent — already have cached embeddings
-  }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+      .catch(() => {}); // silent — cached embeddings are still usable
+  }, [isOnline]);
 
   // Start the camera AFTER the camera view is rendered so videoRef.current
   // is non-null when start() runs and can attach the stream to the <video>.
