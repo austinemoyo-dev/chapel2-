@@ -235,12 +235,18 @@ export function useCamera(options: CameraOptions = {}) {
     const video  = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return null;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
+
+    const sourceWidth = video.videoWidth;
+    const sourceHeight = video.videoHeight;
+    const maxSide = 640;
+    const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+    canvas.width  = Math.max(1, Math.round(sourceWidth * scale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
     const [header, b64] = dataUrl.split(',');
     const mime = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
     const raw  = atob(b64);

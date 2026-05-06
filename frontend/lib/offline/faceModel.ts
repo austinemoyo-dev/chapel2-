@@ -12,9 +12,12 @@
 
 import { saveModel, loadModel, isModelCached } from './db';
 
-// ONNX Runtime WASM files were copied to public/ort-wasm/ at install time.
-// This path must be set BEFORE any InferenceSession is created.
-const WASM_PATH   = '/ort-wasm/';
+// ONNX Runtime WASM files are served from public/ort-wasm/.
+// These paths must be set BEFORE any InferenceSession is created.
+const WASM_PATHS = {
+  mjs:  '/ort-wasm/ort-wasm-simd-threaded.mjs',
+  wasm: '/ort-wasm/ort-wasm-simd-threaded.wasm',
+};
 const MODEL_KEY   = 'arcface_v1';
 const MODEL_URL   = '/api/attendance/offline-model/';
 
@@ -113,10 +116,11 @@ export async function getSession(): Promise<unknown> {
   // Dynamic import so onnxruntime-web is only bundled client-side
   const ort = await import('onnxruntime-web');
 
-  // Point to our self-hosted WASM files and avoid spawning runtime worker
-  // scripts during an offline scan.
-  ort.env.wasm.wasmPaths = WASM_PATH;
+  // Point to the exact self-hosted runtime files and avoid spawning proxy or
+  // thread worker scripts during an offline scan.
+  ort.env.wasm.wasmPaths = WASM_PATHS;
   ort.env.wasm.numThreads = 1;
+  ort.env.wasm.proxy = false;
 
   _session = await ort.InferenceSession.create(buffer, {
     executionProviders: ['wasm'],

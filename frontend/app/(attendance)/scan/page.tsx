@@ -351,15 +351,6 @@ export default function ScanPage() {
         return;
       }
 
-      const landmarks = lastLandmarksRef.current;
-      if (!landmarks || landmarks.length < 400) {
-        setResult({ type: 'failed', name: '', message: 'No face landmarks detected. Try again.' });
-        setScanning(false);
-        setPhase('result');
-        scheduleAutoReset('failed');
-        return;
-      }
-
       if (geo.latitude === null || geo.longitude === null || !deviceId) {
         setResult({ type: 'failed', name: '', message: 'GPS or device ID missing.' });
         setScanning(false);
@@ -370,21 +361,7 @@ export default function ScanPage() {
 
       let offlineSucceeded = false;
       try {
-        // Align face to 112×112 ArcFace template
-        const vw = videoRef.current?.videoWidth  ?? 640;
-        const vh = videoRef.current?.videoHeight ?? 480;
-        const aligned = alignFace(videoRef.current!, landmarks, vw, vh);
-        if (!aligned) {
-          setResult({ type: 'failed', name: '', message: 'Could not align face. Position face in the oval.' });
-          setScanning(false);
-          setPhase('result');
-          scheduleAutoReset('failed');
-          return;
-        }
-
-        // Extract 512-dim ArcFace embedding via ONNX Runtime Web
-        const tensor    = imageDataToFloat32(aligned);
-        const embedding = await extractEmbedding(tensor);
+        const embedding = await extractCurrentFaceEmbedding();
 
         // 1-to-N cosine match against cached student pool
         const pool = await getCachedEmbeddings(selectedService.id);
@@ -428,21 +405,16 @@ export default function ScanPage() {
         });
       } catch (err) {
         console.error('[OfflineMatch]', err);
-        setResult({ type: 'failed', name: '', message: 'Offline matching error. Please retry.' });
+        setResult({
+          type: 'failed',
+          name: '',
+          message: err instanceof Error ? err.message : 'Offline matching error. Please retry.',
+        });
       }
 
       setScanning(false);
       setPhase('result');
       scheduleAutoReset(offlineSucceeded ? 'success' : 'failed');
-      return;
-    }
-
-    const file = captureFrame();
-    if (!file) {
-      setResult({ type: 'failed', name: '', message: 'Camera frame was not captured. Please retry.' });
-      setScanning(false);
-      setPhase('result');
-      scheduleAutoReset('failed');
       return;
     }
 
@@ -458,9 +430,28 @@ export default function ScanPage() {
 
     try {
       const endpoint = mode === 'sign_in' ? attendanceService.signIn : attendanceService.signOut;
+      let faceEmbedding: number[] | undefined;
+
+      if (offlineReady) {
+        try {
+          faceEmbedding = Array.from(await extractCurrentFaceEmbedding());
+        } catch (err) {
+          console.warn('[OnlineScan] Local embedding unavailable, falling back to image upload:', err);
+        }
+      }
+
+      const file = faceEmbedding ? undefined : captureFrame();
+      if (!faceEmbedding && !file) {
+        setResult({ type: 'failed', name: '', message: 'Camera frame was not captured. Please retry.' });
+        setPhase('result');
+        scheduleAutoReset('failed');
+        return;
+      }
+
       const response = await endpoint({
         service_id: selectedService.id,
-        face_image: file,
+        face_embedding: faceEmbedding,
+        face_image: file ?? undefined,
         device_id: deviceId,
         gps_lat: gpsLat,
         gps_lng: gpsLng,
@@ -504,6 +495,27 @@ export default function ScanPage() {
     setTimeout(() => {
       if (phaseRef.current === 'result') resetScan();
     }, delay);
+  }
+
+  async function extractCurrentFaceEmbedding(): Promise<Float32Array> {
+    const video = videoRef.current;
+    const landmarks = lastLandmarksRef.current;
+    if (!video) {
+      throw new Error('Camera video is not ready.');
+    }
+    if (!landmarks || landmarks.length < 400) {
+      throw new Error('No face landmarks detected.');
+    }
+
+    const vw = video.videoWidth  || 640;
+    const vh = video.videoHeight || 480;
+    const aligned = alignFace(video, landmarks, vw, vh);
+    if (!aligned) {
+      throw new Error('Could not align face.');
+    }
+
+    const tensor = imageDataToFloat32(aligned);
+    return extractEmbedding(tensor);
   }
 
   const gpsReady = geo.latitude !== null && geo.longitude !== null && !geo.permissionDenied;

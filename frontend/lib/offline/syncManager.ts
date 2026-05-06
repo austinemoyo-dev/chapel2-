@@ -2,7 +2,7 @@
 // Sync Manager — Background sync orchestration for offline attendance records.
 // ============================================================================
 
-import { getQueue, removeFromQueue, clearEmbeddings } from './db';
+import { getQueue, removeFromQueue } from './db';
 import { attendanceService, type OfflineSyncRecord } from '@/lib/api/attendanceService';
 
 export interface SyncResult {
@@ -49,9 +49,6 @@ export async function syncOfflineRecords(): Promise<SyncResult> {
         await removeFromQueue(queue[result.index].id);
       }
     }
-
-    // Clear embeddings cache after successful sync
-    await clearEmbeddings();
 
     return {
       total: response.total,
