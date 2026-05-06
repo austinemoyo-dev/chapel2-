@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { registrationService, type PublicStudentLookupResponse, type StudentAttendancePortalResponse } from '@/lib/api/registrationService';
 import Logo from '@/components/ui/Logo';
@@ -48,7 +48,7 @@ function fmtD(d: string) {
   try { return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch { return d; }
 }
 
-export default function StudentServicesPage() {
+function StudentServicesContent() {
   const router = useRouter();
   const sp = useSearchParams();
   const [tab, setTab] = useState<TabKey>((sp.get('tab') as TabKey) || 'lookup');
@@ -315,5 +315,13 @@ export default function StudentServicesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StudentServicesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><span className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"/></div>}>
+      <StudentServicesContent />
+    </Suspense>
   );
 }
