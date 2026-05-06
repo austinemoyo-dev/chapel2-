@@ -113,8 +113,10 @@ export async function getSession(): Promise<unknown> {
   // Dynamic import so onnxruntime-web is only bundled client-side
   const ort = await import('onnxruntime-web');
 
-  // Point to our self-hosted WASM files
+  // Point to our self-hosted WASM files and avoid spawning runtime worker
+  // scripts during an offline scan.
   ort.env.wasm.wasmPaths = WASM_PATH;
+  ort.env.wasm.numThreads = 1;
 
   _session = await ort.InferenceSession.create(buffer, {
     executionProviders: ['wasm'],

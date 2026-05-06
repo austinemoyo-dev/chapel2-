@@ -507,7 +507,7 @@ export default function ScanPage() {
   }
 
   const gpsReady = geo.latitude !== null && geo.longitude !== null && !geo.permissionDenied;
-  const canScan = isActive && gpsReady && !!deviceId && !!selectedService && !scanning && isOnline;
+  const canScan = isActive && gpsReady && !!deviceId && !!selectedService && !scanning && (isOnline || offlineReady);
 
   if (phase === 'select_service') {
     return (
