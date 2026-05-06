@@ -140,14 +140,26 @@ export async function extractEmbedding(alignedTensor: Float32Array): Promise<Flo
   const ort     = await import('onnxruntime-web');
   const session = await getSession() as import('onnxruntime-web').InferenceSession;
 
-  // The buffalo_l recognition model uses input name 'input.1'
   const inputName  = session.inputNames[0];
   const outputName = session.outputNames[0];
+
+  if (!inputName || !outputName) {
+    throw new Error('ArcFace model has unexpected input/output names.');
+  }
 
   const tensor  = new ort.Tensor('float32', alignedTensor, [1, 3, 112, 112]);
   const feeds   = { [inputName]: tensor };
   const results = await session.run(feeds);
   const output  = results[outputName];
 
-  return output.data as Float32Array;
+  if (!output?.data) {
+    throw new Error('ArcFace model returned no output — try again.');
+  }
+
+  const embedding = output.data as Float32Array;
+  if (embedding.length !== 512) {
+    throw new Error(`Invalid embedding size: expected 512, got ${embedding.length}.`);
+  }
+
+  return embedding;
 }

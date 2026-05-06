@@ -365,7 +365,7 @@ export default function ScanPage() {
 
         // 1-to-N cosine match against cached student pool
         const pool = await getCachedEmbeddings(selectedService.id);
-        if (!pool || pool.embeddings.length === 0) {
+        if (!pool || !pool.embeddings || pool.embeddings.length === 0) {
           setResult({ type: 'failed', name: '', message: 'No cached student embeddings. Select service again while online.' });
           setScanning(false);
           setPhase('result');

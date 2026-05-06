@@ -98,9 +98,15 @@ function estimateSimilarityTransform(src: Point[], dst: Point[]): [number, numbe
   return [a, b, tx, ty];
 }
 
+// Reuse a single 112×112 canvas across scans — avoids per-scan allocation.
+let _alignCanvas: HTMLCanvasElement | null = null;
+
 /**
  * Extract and align a 112×112 face crop from the current video frame,
  * using the same 5-point alignment as InsightFace's buffalo_l pipeline.
+ *
+ * The video element is drawn directly into the destination canvas with the
+ * similarity transform applied — no intermediate full-resolution canvas copy.
  */
 export function alignFace(
   video: HTMLVideoElement,
@@ -130,25 +136,22 @@ export function alignFace(
 
   const [a, b, tx, ty] = estimateSimilarityTransform(src, DST);
 
-  const srcCanvas = document.createElement('canvas');
-  srcCanvas.width = vw;
-  srcCanvas.height = vh;
-  const srcCtx = srcCanvas.getContext('2d');
-  if (!srcCtx) return null;
-  srcCtx.drawImage(video, 0, 0, vw, vh);
+  if (!_alignCanvas) {
+    _alignCanvas = document.createElement('canvas');
+    _alignCanvas.width  = 112;
+    _alignCanvas.height = 112;
+  }
 
-  const dstCanvas = document.createElement('canvas');
-  dstCanvas.width = 112;
-  dstCanvas.height = 112;
-  const dstCtx = dstCanvas.getContext('2d');
-  if (!dstCtx) return null;
+  const ctx = _alignCanvas.getContext('2d');
+  if (!ctx) return null;
 
-  // Canvas transforms source coordinates into destination canvas coordinates.
-  dstCtx.setTransform(a, b, -b, a, tx, ty);
-  dstCtx.drawImage(srcCanvas, 0, 0);
-  dstCtx.setTransform(1, 0, 0, 1, 0, 0);
+  // Draw the video frame directly into the 112×112 canvas with the forward
+  // similarity transform applied. No intermediate full-resolution copy needed.
+  ctx.setTransform(a, b, -b, a, tx, ty);
+  ctx.drawImage(video, 0, 0, vw, vh);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  return dstCtx.getImageData(0, 0, 112, 112);
+  return ctx.getImageData(0, 0, 112, 112);
 }
 
 /**
