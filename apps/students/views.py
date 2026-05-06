@@ -175,24 +175,22 @@ class StudentRegistrationView(APIView):
             matric_number=matric_number,
         )
 
-        # Block duplicates immediately instead of flagging
+        # Hard-block on exact matric or phone matches (genuine duplicates)
         if dup_results['checks']['matric']:
+            match_info = dup_results['checks']['matric']
             return Response(
-                {'error': 'A student with this Matriculation Number is already registered for this semester.'},
+                {'error': f'Matric number already registered to {match_info["matched_name"]}. If this is an error, contact the administrator to resolve.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if dup_results['checks']['phone']:
+            match_info = dup_results['checks']['phone']
             return Response(
-                {'error': 'A student with this Phone Number is already registered.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if dup_results['checks']['name']:
-            return Response(
-                {'error': 'A student with the exact same name is already registered. If this is you, please contact the administrator.'},
+                {'error': f'Phone number already registered to {match_info["matched_name"]}. If this is an error, contact the administrator to resolve.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        duplicate_flag = False
+        # Fuzzy name matches: FLAG instead of block — admin resolves later
+        duplicate_flag = bool(dup_results['checks']['name'])
 
         # Assign service group
         try:
