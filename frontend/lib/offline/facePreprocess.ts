@@ -1,22 +1,9 @@
 'use client';
 // ============================================================================
-// facePreprocess — ArcFace face alignment and tensor preparation.
-//
-// ArcFace expects a 112×112 RGB image of an ALIGNED face.
-// "Aligned" means the 5 key facial landmarks (eyes, nose, mouth corners)
-// are warped to match a fixed standard template, so the network always
-// sees the face in the same canonical pose regardless of head angle.
-//
-// This file:
-//   1. Takes 5 detected landmark coordinates + raw video frame
-//   2. Estimates a 2-D similarity transform (scale + rotation + translation)
-//      that maps the detected points to the ArcFace standard template
-//   3. Applies that transform to extract a 112×112 crop via canvas 2D
-//   4. Converts the pixel data to a float32 NCHW tensor
+// facePreprocess - ArcFace face alignment and tensor preparation.
 // ============================================================================
 
-// ArcFace standard 5-point face template for 112×112 crop.
-// Order: left_eye, right_eye, nose, left_mouth_corner, right_mouth_corner.
+// ArcFace 112x112 five-point template used by InsightFace.
 const DST: [number, number][] = [
   [38.2946, 51.6963],
   [73.5318, 51.5014],
@@ -25,62 +12,68 @@ const DST: [number, number][] = [
   [70.7299, 92.2041],
 ];
 
-// MediaPipe FaceLandmarker landmark indices for the 5 alignment points.
 const LM_IDX = {
-  leftEye:    159,
-  rightEye:   386,
-  nose:         1,
-  leftMouth:   61,
-  rightMouth: 291,
+  leftEye: [33, 133],
+  rightEye: [362, 263],
+  nose: 1,
+  mouthCorners: [61, 291],
 } as const;
 
 type Point = [number, number];
 
-/** Solve for a similarity transform (scale, rotation, tx, ty) using
- *  the least-squares closed-form solution over matched point pairs.
- *
- *  Returns a 2×3 matrix [[a, b, tx], [-b, a, ty]] where:
- *    a =  s·cos θ
- *    b =  s·sin θ
- */
-function estimateSimilarityTransform(src: Point[], dst: Point[]): number[][] {
-  const n = src.length;
-  let a = 0, b = 0, cx = 0, cy = 0;
-  let sx = 0, sy = 0, sxx = 0, sxy = 0, syx = 0, syy = 0;
+function toPoint(landmark: { x: number; y: number }, vw: number, vh: number): Point {
+  return [landmark.x * vw, landmark.y * vh];
+}
 
-  for (let i = 0; i < n; i++) {
-    const [x, y] = src[i];
-    const [u, v] = dst[i];
-    cx  += x; cy  += y;
-    sx  += u; sy  += v;
-    sxx += x * u; sxy += x * v;
-    syx += y * u; syy += y * v;
-  }
-
-  const W  = n;
-  const det = (sxx + syy) - (cx * sx + cy * sy) / W;
-  if (Math.abs(det) < 1e-10) {
-    // Degenerate — return identity
-    return [[1, 0, 0], [0, 1, 0]];
-  }
-
-  a = ((sxx + syy) - (cx * sx + cy * sy) / W) / (det !== 0 ? det : 1);
-  b = ((syx - sxy) - (cy * sx - cx * sy) / W) / (det !== 0 ? det : 1);
-
-  const tx = (sx - a * cx - b * cy) / W;
-  const ty = (sy + b * cx - a * cy) / W;
-
-  return [[a, b, tx], [-b, a, ty]];
+function midpoint(a: Point, b: Point): Point {
+  return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
 /**
- * Extract and align a 112×112 face crop from the current video frame.
- *
- * @param video     The live HTMLVideoElement (camera stream)
- * @param landmarks MediaPipe landmark array (normalised 0–1 coords)
- * @param vw        Video natural width in pixels
- * @param vh        Video natural height in pixels
- * @returns         ImageData of the 112×112 aligned crop, or null if failed
+ * Least-squares similarity transform from src to dst:
+ *   u = a*x - b*y + tx
+ *   v = b*x + a*y + ty
+ */
+function estimateSimilarityTransform(src: Point[], dst: Point[]): [number, number, number, number] {
+  const n = src.length;
+  let srcCx = 0, srcCy = 0, dstCx = 0, dstCy = 0;
+
+  for (let i = 0; i < n; i++) {
+    srcCx += src[i][0];
+    srcCy += src[i][1];
+    dstCx += dst[i][0];
+    dstCy += dst[i][1];
+  }
+
+  srcCx /= n;
+  srcCy /= n;
+  dstCx /= n;
+  dstCy /= n;
+
+  let numA = 0, numB = 0, den = 0;
+  for (let i = 0; i < n; i++) {
+    const x = src[i][0] - srcCx;
+    const y = src[i][1] - srcCy;
+    const u = dst[i][0] - dstCx;
+    const v = dst[i][1] - dstCy;
+
+    numA += x * u + y * v;
+    numB += x * v - y * u;
+    den += x * x + y * y;
+  }
+
+  if (den < 1e-10) return [1, 0, 0, 0];
+
+  const a = numA / den;
+  const b = numB / den;
+  const tx = dstCx - a * srcCx + b * srcCy;
+  const ty = dstCy - b * srcCx - a * srcCy;
+
+  return [a, b, tx, ty];
+}
+
+/**
+ * Extract and align a 112x112 face crop from the current video frame.
  */
 export function alignFace(
   video: HTMLVideoElement,
@@ -90,59 +83,57 @@ export function alignFace(
 ): ImageData | null {
   if (!landmarks || landmarks.length < 400) return null;
 
-  // Extract 5 source points (convert normalised → pixel coords)
+  const eyeA = midpoint(
+    toPoint(landmarks[LM_IDX.leftEye[0]], vw, vh),
+    toPoint(landmarks[LM_IDX.leftEye[1]], vw, vh),
+  );
+  const eyeB = midpoint(
+    toPoint(landmarks[LM_IDX.rightEye[0]], vw, vh),
+    toPoint(landmarks[LM_IDX.rightEye[1]], vw, vh),
+  );
+  const mouthA = toPoint(landmarks[LM_IDX.mouthCorners[0]], vw, vh);
+  const mouthB = toPoint(landmarks[LM_IDX.mouthCorners[1]], vw, vh);
+
+  const [leftEye, rightEye] = eyeA[0] <= eyeB[0] ? [eyeA, eyeB] : [eyeB, eyeA];
+  const [leftMouth, rightMouth] = mouthA[0] <= mouthB[0] ? [mouthA, mouthB] : [mouthB, mouthA];
+
   const src: Point[] = [
-    [landmarks[LM_IDX.leftEye].x    * vw, landmarks[LM_IDX.leftEye].y    * vh],
-    [landmarks[LM_IDX.rightEye].x   * vw, landmarks[LM_IDX.rightEye].y   * vh],
-    [landmarks[LM_IDX.nose].x       * vw, landmarks[LM_IDX.nose].y       * vh],
-    [landmarks[LM_IDX.leftMouth].x  * vw, landmarks[LM_IDX.leftMouth].y  * vh],
-    [landmarks[LM_IDX.rightMouth].x * vw, landmarks[LM_IDX.rightMouth].y * vh],
+    leftEye,
+    rightEye,
+    toPoint(landmarks[LM_IDX.nose], vw, vh),
+    leftMouth,
+    rightMouth,
   ];
 
-  const M = estimateSimilarityTransform(src, DST);
-  const [[a, b, tx], [nb, na, ty]] = M; // nb = -b, na = a
+  const [a, b, tx, ty] = estimateSimilarityTransform(src, DST);
 
-  // Draw the full video frame onto an off-screen canvas, then apply the
-  // inverse transform to extract the 112×112 region.
-  const src_canvas = document.createElement('canvas');
-  src_canvas.width  = vw;
-  src_canvas.height = vh;
-  const sc = src_canvas.getContext('2d')!;
-  sc.drawImage(video, 0, 0, vw, vh);
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = vw;
+  srcCanvas.height = vh;
+  const srcCtx = srcCanvas.getContext('2d');
+  if (!srcCtx) return null;
+  srcCtx.drawImage(video, 0, 0, vw, vh);
 
-  const dst_canvas = document.createElement('canvas');
-  dst_canvas.width  = 112;
-  dst_canvas.height = 112;
-  const dc = dst_canvas.getContext('2d')!;
+  const dstCanvas = document.createElement('canvas');
+  dstCanvas.width = 112;
+  dstCanvas.height = 112;
+  const dstCtx = dstCanvas.getContext('2d');
+  if (!dstCtx) return null;
 
-  // Apply the transform: for each destination pixel (u, v),
-  // we need the inverse mapping back to source (x, y).
-  // M maps src→dst: [u, v] = M·[x, y, 1]
-  // So inverse M maps dst→src.
-  const det = a * na - b * nb;  // = a*a + b*b
-  if (Math.abs(det) < 1e-10) return null;
+  // Canvas transforms source coordinates into destination canvas coordinates.
+  dstCtx.setTransform(a, b, -b, a, tx, ty);
+  dstCtx.drawImage(srcCanvas, 0, 0);
+  dstCtx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const invA  =  na / det;
-  const invB  = -b  / det;
-  const invNB = -nb / det;
-  const invNA =  a  / det;
-  const invTX = -(invA * tx + invB  * ty);
-  const invTY = -(invNB * tx + invNA * ty);
-
-  dc.setTransform(invA, invNB, invB, invNA, invTX, invTY);
-  dc.drawImage(src_canvas, 0, 0);
-  dc.setTransform(1, 0, 0, 1, 0, 0);
-
-  return dc.getImageData(0, 0, 112, 112);
+  return dstCtx.getImageData(0, 0, 112, 112);
 }
 
 /**
- * Convert a 112×112 RGBA ImageData to an ArcFace float32 NCHW tensor.
- * Normalisation: (pixel − 127.5) / 128.0  →  range ≈ [−1, 1]
- * Output shape: [1, 3, 112, 112] (batch=1, RGB channels, H, W)
+ * Convert a 112x112 RGBA ImageData to an ArcFace NCHW tensor.
+ * Normalization matches InsightFace: (pixel - 127.5) / 127.5.
  */
 export function imageDataToFloat32(img: ImageData): Float32Array {
-  const { data } = img; // RGBA, 112*112*4 bytes
+  const { data } = img;
   const tensor = new Float32Array(1 * 3 * 112 * 112);
   const npx = 112 * 112;
 
@@ -150,9 +141,10 @@ export function imageDataToFloat32(img: ImageData): Float32Array {
     const r = data[i * 4];
     const g = data[i * 4 + 1];
     const b = data[i * 4 + 2];
-    tensor[i]           = (r - 127.5) / 128.0; // channel 0 (R)
-    tensor[npx + i]     = (g - 127.5) / 128.0; // channel 1 (G)
-    tensor[2 * npx + i] = (b - 127.5) / 128.0; // channel 2 (B)
+
+    tensor[i] = (r - 127.5) / 127.5;
+    tensor[npx + i] = (g - 127.5) / 127.5;
+    tensor[2 * npx + i] = (b - 127.5) / 127.5;
   }
 
   return tensor;
