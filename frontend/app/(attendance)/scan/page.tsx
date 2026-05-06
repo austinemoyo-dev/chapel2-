@@ -695,8 +695,9 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Light frosted mask with glowing oval */}
+      {/* Premium Sci-Fi HUD Mask */}
       <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
+        {/* Darker translucent mask for premium sci-fi contrast */}
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs>
             <mask id="faceMask">
@@ -704,20 +705,77 @@ export default function ScanPage() {
               <ellipse cx="50" cy="45" rx="28" ry="36" fill="black"/>
             </mask>
           </defs>
-          <rect width="100" height="100" fill="rgba(255,255,255,0.85)" mask="url(#faceMask)"/>
+          <rect width="100" height="100" fill="rgba(0,0,0,0.70)" mask="url(#faceMask)"/>
         </svg>
         
-        <div className={`w-[56%] aspect-[28/36] rounded-full border-[3px] transition-all duration-500 relative ${
-          phase === 'scanning'  ? 'border-primary shadow-[0_0_40px_rgba(124,58,237,0.4),inset_0_0_20px_rgba(124,58,237,0.2)] scale-105' :
-          phase === 'liveness'  ? 'border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)]' :
-          faceDetected          ? 'border-success shadow-[0_0_30px_rgba(16,185,129,0.25)] scale-[1.02]' :
-                                  'border-primary/20'
+        {/* The Advanced HUD Reticle */}
+        <div className={`w-[56%] sm:w-[45%] lg:w-[35%] aspect-[28/36] relative transition-all duration-500 ease-out ${
+          phase === 'scanning'  ? 'scale-105' :
+          faceDetected          ? 'scale-[1.02]' :
+                                  'scale-100'
         }`}>
-          {/* Scanning sweep animation line */}
+          
+          {/* Futuristic Corner Brackets */}
+          <div className={`absolute -top-3 -left-3 w-10 h-10 sm:w-12 sm:h-12 border-t-[3px] border-l-[3px] rounded-tl-3xl transition-colors duration-300 ${
+            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
+            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
+          }`} />
+          <div className={`absolute -top-3 -right-3 w-10 h-10 sm:w-12 sm:h-12 border-t-[3px] border-r-[3px] rounded-tr-3xl transition-colors duration-300 ${
+            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
+            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
+          }`} />
+          <div className={`absolute -bottom-3 -left-3 w-10 h-10 sm:w-12 sm:h-12 border-b-[3px] border-l-[3px] rounded-bl-3xl transition-colors duration-300 ${
+            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
+            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
+          }`} />
+          <div className={`absolute -bottom-3 -right-3 w-10 h-10 sm:w-12 sm:h-12 border-b-[3px] border-r-[3px] rounded-br-3xl transition-colors duration-300 ${
+            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
+            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
+          }`} />
+
+          {/* Crosshair accents */}
+          <div className={`absolute top-1/2 -left-5 sm:-left-6 w-3 sm:w-4 h-[2px] -translate-y-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
+          <div className={`absolute top-1/2 -right-5 sm:-right-6 w-3 sm:w-4 h-[2px] -translate-y-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
+          <div className={`absolute -top-5 sm:-top-6 left-1/2 w-[2px] h-3 sm:h-4 -translate-x-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
+          <div className={`absolute -bottom-5 sm:-bottom-6 left-1/2 w-[2px] h-3 sm:h-4 -translate-x-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
+
+          {/* Inner Oval Guide Ring */}
+          <div className={`absolute inset-0 rounded-[100%] border transition-all duration-300 ${
+            phase === 'scanning' ? 'border-primary/50 bg-primary/10 shadow-[inset_0_0_50px_rgba(124,58,237,0.2)]' :
+            faceDetected ? 'border-success/50 bg-success/10' : 'border-white/20 border-dashed'
+          }`} />
+
+          {/* High-tech scanning sweep laser */}
           {phase === 'scanning' && (
-            <div className="absolute left-0 right-0 h-[2px] bg-primary shadow-[0_0_10px_rgba(124,58,237,0.8)] rounded-full" 
-                 style={{ animation: 'slide-up-fade 1s infinite alternate linear' }} />
+            <div className="absolute inset-x-0 top-0 bottom-0 overflow-hidden rounded-[100%]">
+               <div className="absolute left-0 right-0 h-[30%] bg-gradient-to-b from-primary/0 via-primary/20 to-primary border-b-[3px] border-primary shadow-[0_10px_40px_rgba(124,58,237,0.8)]" 
+                    style={{ animation: 'slide-up-fade 1.2s infinite alternate ease-in-out' }} />
+            </div>
           )}
+
+          {/* Floating Data Points inside reticle */}
+          <div className="absolute left-6 top-8 flex flex-col gap-1 text-[8px] sm:text-[10px] font-mono tracking-widest text-white/50">
+            <span className={`transition-colors ${faceDetected ? 'text-success' : ''}`}>[ TRK ]</span>
+            <span>{isOnline ? 'ONL' : 'OFL'}</span>
+          </div>
+          
+          <div className="absolute right-6 bottom-8 flex flex-col gap-1 text-[8px] sm:text-[10px] font-mono tracking-widest text-white/50 text-right">
+            <span>SYS_V2</span>
+            <span className={`transition-colors ${phase === 'scanning' ? 'text-primary' : ''}`}>[ BIO ]</span>
+          </div>
+
+          {/* Minimalist HUD Label */}
+          <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
+             <div className={`inline-block px-5 py-2 rounded-full backdrop-blur-md border text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-300 ${
+               phase === 'scanning' ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_20px_rgba(124,58,237,0.3)]' :
+               faceDetected         ? 'bg-success/20 border-success/50 text-success shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
+                                      'bg-black/60 border-white/20 text-white shadow-xl'
+             }`}>
+               {phase === 'scanning' ? 'MATCHING' :
+                faceDetected         ? 'ACQUIRED' :
+                                       'ALIGN FACE'}
+             </div>
+          </div>
         </div>
       </div>
 
