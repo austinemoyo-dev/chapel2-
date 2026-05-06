@@ -430,18 +430,12 @@ export default function ScanPage() {
 
     try {
       const endpoint = mode === 'sign_in' ? attendanceService.signIn : attendanceService.signOut;
-      let faceEmbedding: number[] | undefined;
 
-      if (offlineReady) {
-        try {
-          faceEmbedding = Array.from(await extractCurrentFaceEmbedding());
-        } catch (err) {
-          console.warn('[OnlineScan] Local embedding unavailable, falling back to image upload:', err);
-        }
-      }
-
-      const file = faceEmbedding ? undefined : captureFrame();
-      if (!faceEmbedding && !file) {
+      // Always upload the image when online so the server runs InsightFace on it.
+      // The locally-extracted ONNX embedding uses MediaPipe alignment which differs
+      // from InsightFace's internal alignment, causing all matches to fail.
+      const file = captureFrame();
+      if (!file) {
         setResult({ type: 'failed', name: '', message: 'Camera frame was not captured. Please retry.' });
         setPhase('result');
         scheduleAutoReset('failed');
@@ -450,8 +444,7 @@ export default function ScanPage() {
 
       const response = await endpoint({
         service_id: selectedService.id,
-        face_embedding: faceEmbedding,
-        face_image: file ?? undefined,
+        face_image: file,
         device_id: deviceId,
         gps_lat: gpsLat,
         gps_lng: gpsLng,
