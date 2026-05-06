@@ -88,6 +88,7 @@ export default function ScanPage() {
 
   const handleSelectService = useCallback(async (service: Service) => {
     setSelectedService(service);
+    setPhase('ready');
     setEmbeddingLoading(true);
     setEmbeddingStatus('Downloading student face data...');
 
@@ -122,8 +123,6 @@ export default function ScanPage() {
     } finally {
       setEmbeddingLoading(false);
     }
-
-    setPhase('ready');
   }, [isOnline, addToast]);
 
   useEffect(() => {
