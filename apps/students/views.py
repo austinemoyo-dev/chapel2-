@@ -177,15 +177,13 @@ class StudentRegistrationView(APIView):
 
         # Hard-block on exact matric or phone matches (genuine duplicates)
         if dup_results['checks']['matric']:
-            match_info = dup_results['checks']['matric']
             return Response(
-                {'error': f'Matric number already registered to {match_info["matched_name"]}. If this is an error, contact the administrator to resolve.'},
+                {'error': 'This Matric Number is already registered for this semester. Contact the administrator if this is an error.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if dup_results['checks']['phone']:
-            match_info = dup_results['checks']['phone']
             return Response(
-                {'error': f'Phone number already registered to {match_info["matched_name"]}. If this is an error, contact the administrator to resolve.'},
+                {'error': 'This Phone Number is already registered. Contact the administrator if this is an error.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
