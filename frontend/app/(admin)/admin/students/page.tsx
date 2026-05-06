@@ -317,6 +317,11 @@ export default function StudentsPage() {
                     {student.phone_number && (
                       <p className="text-xs text-muted/80 mt-0.5">📱 {student.phone_number}</p>
                     )}
+                    <div className="mt-2">
+                      <Badge variant={student.service_group ? 'info' : 'warning'} className="text-[10px] px-2 py-0.5 border border-white/20 shadow-sm">
+                        {student.service_group ? `Group ${student.service_group}` : 'No Group Assigned'}
+                      </Badge>
+                    </div>
                   </div>
 
                   {/* Ghost record actions */}

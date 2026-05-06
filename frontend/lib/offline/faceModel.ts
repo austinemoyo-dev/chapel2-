@@ -75,11 +75,27 @@ export async function downloadAndCacheModel(
 
   await saveModel(MODEL_KEY, fullArray.buffer);
   onProgress(100);
+  
+  // Warm up the session immediately while online. This forces the browser to
+  // download the 'onnxruntime-web' JS chunk and the '.wasm' file, ensuring
+  // the Service Worker caches them for offline use.
+  await getSession().catch(err => console.warn('[faceModel] Warmup failed:', err));
 }
 
-/** Returns true if the model ArrayBuffer is in IndexedDB. */
+/** Returns true if the model ArrayBuffer is in IndexedDB and session can be created. */
 export async function isModelReady(): Promise<boolean> {
-  return isModelCached(MODEL_KEY);
+  const cached = await isModelCached(MODEL_KEY);
+  if (cached) {
+    try {
+      // Warm up session so WASM is cached before going offline
+      await getSession();
+      return true;
+    } catch (err) {
+      console.warn('[faceModel] Cached model warmup failed:', err);
+      return false;
+    }
+  }
+  return false;
 }
 
 /**
