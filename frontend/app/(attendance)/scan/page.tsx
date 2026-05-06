@@ -61,8 +61,12 @@ export default function ScanPage() {
   const analysisLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const holdStartRef    = useRef<number | null>(null);
   const phaseRef        = useRef(phase);
+  // Ref so handleSelectService can read the live value without being recreated
+  // every time isOnline flips — which would re-trigger the services useEffect.
+  const isOnlineRef = useRef(isOnline);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
   const [pendingSync, setPendingSync] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState('Select a service to prepare attendance.');
@@ -93,7 +97,7 @@ export default function ScanPage() {
     setEmbeddingStatus('Downloading student face data...');
 
     try {
-      if (isOnline) {
+      if (isOnlineRef.current) {
         setEmbeddingStatus('Connecting to server...');
         const data = await attendanceService.getEmbeddings(service.id);
         setEmbeddingStatus(`Processing ${data.student_count} student embeddings...`);
@@ -123,7 +127,7 @@ export default function ScanPage() {
     } finally {
       setEmbeddingLoading(false);
     }
-  }, [isOnline, addToast]);
+  }, [addToast]); // stable — isOnline is read from isOnlineRef, not the closure
 
   useEffect(() => {
     serviceService.listServices({ is_cancelled: 'false' }).then((data) => {
@@ -204,6 +208,27 @@ export default function ScanPage() {
     }
     return undefined;
   }, [isOnline, pendingSync, syncing, handleSync]);
+
+  // When the device comes back online with a service already selected,
+  // silently refresh embeddings in the background — no overlay shown.
+  const selectedServiceRef = useRef(selectedService);
+  useEffect(() => { selectedServiceRef.current = selectedService; }, [selectedService]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    const svc = selectedServiceRef.current;
+    if (!svc) return;
+    attendanceService.getEmbeddings(svc.id)
+      .then(async (data) => {
+        setEmbeddings(data.embeddings);
+        await cacheEmbeddings({
+          service_id: svc.id,
+          embeddings: data.embeddings,
+          cached_at: new Date().toISOString(),
+        });
+      })
+      .catch(() => {}); // silent — already have cached embeddings
+  }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start the camera AFTER the camera view is rendered so videoRef.current
   // is non-null when start() runs and can attach the stream to the <video>.
