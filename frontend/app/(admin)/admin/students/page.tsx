@@ -280,7 +280,7 @@ export default function StudentsPage() {
                 key={student.id}
                 className="group relative block p-5 rounded-3xl glass-card card-lift border border-white/40 hover:border-primary/40 transition-all duration-300 overflow-hidden"
               >
-                <a href={`/admin/students/${student.id}`} className="absolute inset-0 z-0" />
+                <a href={`/admin/students/${student.id}`} className="absolute inset-0 z-10" />
                 <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 
                 <div className="relative flex flex-col gap-4">
@@ -321,7 +321,7 @@ export default function StudentsPage() {
 
                   {/* Ghost record actions */}
                   {statusFilter === 'incomplete' && (
-                    <div className="relative z-10 flex gap-2 pt-2 border-t border-border">
+                    <div className="relative z-20 flex gap-2 pt-2 border-t border-border">
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(student.phone_number || ''); addToast('Phone number copied!', 'success'); }}
                         className="flex-1 py-1.5 px-3 text-xs font-medium rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
