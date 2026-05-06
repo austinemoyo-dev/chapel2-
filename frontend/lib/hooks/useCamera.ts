@@ -129,10 +129,30 @@ export function useCamera(options: CameraOptions = {}) {
         videoConstraints.facingMode = options.facingMode || 'user';
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false,
+        });
+      } catch (firstErr) {
+        // Fallback: retry without focusMode and advanced constraints
+        console.warn('First getUserMedia failed, retrying with basic constraints', firstErr);
+        const basicConstraints: MediaTrackConstraints = {
+          width: { ideal: options.width || 640 },
+          height: { ideal: options.height || 480 },
+        };
+        if (targetDeviceId) {
+          basicConstraints.deviceId = { exact: targetDeviceId };
+        } else {
+          basicConstraints.facingMode = options.facingMode || 'user';
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: basicConstraints,
+          audio: false,
+        });
+      }
+      
       streamRef.current = stream;
 
       // Track which camera is actually active

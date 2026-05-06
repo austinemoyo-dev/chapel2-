@@ -26,7 +26,7 @@ type ResultType = 'success' | 'already_marked' | 'failed' | 'offline_unavailable
 export default function ScanPage() {
   const { user, logout } = useAuth();
   const { addToast } = useToast();
-  const { videoRef, canvasRef, overlayRef, start, stop, captureFrame, isActive, analyzeFrame, modelsLoaded, availableCameras, activeCameraId, switchCamera } = useCamera({
+  const { videoRef, canvasRef, overlayRef, start, stop, captureFrame, isActive, error, analyzeFrame, modelsLoaded, availableCameras, activeCameraId, switchCamera } = useCamera({
     facingMode: 'environment',
     width: 1280,
     height: 720,
@@ -67,6 +67,7 @@ export default function ScanPage() {
   const [syncing, setSyncing] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState('Select a service to prepare attendance.');
   const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [embeddingLoading, setEmbeddingLoading] = useState(false);
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -87,25 +88,29 @@ export default function ScanPage() {
 
   const handleSelectService = useCallback(async (service: Service) => {
     setSelectedService(service);
-    setEmbeddingStatus('Preparing face pool...');
+    setEmbeddingLoading(true);
+    setEmbeddingStatus('Downloading student face data...');
 
     try {
       if (isOnline) {
+        setEmbeddingStatus('Connecting to server...');
         const data = await attendanceService.getEmbeddings(service.id);
+        setEmbeddingStatus(`Processing ${data.student_count} student embeddings...`);
         setEmbeddings(data.embeddings);
         await cacheEmbeddings({
           service_id: service.id,
           embeddings: data.embeddings,
           cached_at: new Date().toISOString(),
         });
-        setEmbeddingStatus(`${data.student_count} embeddings cached for this service.`);
+        setEmbeddingStatus(`${data.student_count} embeddings ready.`);
         addToast(`Loaded ${data.student_count} student embeddings`, 'info');
       } else {
+        setEmbeddingStatus('Loading cached data...');
         const cached = await getCachedEmbeddings(service.id);
         if (cached) {
           setEmbeddings(cached.embeddings);
-          setEmbeddingStatus(`${cached.embeddings.length} cached student records found. Offline face matching still requires a browser model.`);
-          addToast('Cached embeddings found, but offline matching is not enabled yet.', 'warning');
+          setEmbeddingStatus(`${cached.embeddings.length} cached student records found.`);
+          addToast('Using cached embeddings for offline mode.', 'warning');
         } else {
           setEmbeddings([]);
           setEmbeddingStatus('No cached embeddings for this service.');
@@ -114,14 +119,10 @@ export default function ScanPage() {
     } catch {
       setEmbeddingStatus('Could not load embeddings. Online scans may still work through the backend.');
       addToast('Failed to load embeddings', 'error');
+    } finally {
+      setEmbeddingLoading(false);
     }
 
-    // Switch to camera view BEFORE starting the camera.
-    // The <video> element only exists in the DOM during the camera phases.
-    // Calling start() here (while phase is still 'select_service') means
-    // videoRef.current is null — the stream gets obtained but never attached.
-    // The useEffect below fires after the re-render, by which time
-    // videoRef.current is set and the stream attaches correctly.
     setPhase('ready');
   }, [isOnline, addToast]);
 
@@ -647,6 +648,60 @@ export default function ScanPage() {
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
       <canvas ref={canvasRef} className="hidden" />
+
+      {/* Error Overlay */}
+      {error && !isActive && (
+        <div className="absolute inset-0 z-40 bg-black/80 flex items-center justify-center p-6">
+          <div className="bg-surface rounded-2xl p-6 max-w-sm w-full text-center border border-warning/30 shadow-xl">
+            <div className="w-12 h-12 bg-warning/20 rounded-full flex items-center justify-center mx-auto mb-4 text-warning">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <p className="text-foreground font-bold mb-2">Camera Error</p>
+            <p className="text-muted text-sm mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} variant="primary" className="w-full">
+              Reload Scanner
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Embedding Loading Overlay — blocks camera only while downloading face data */}
+      {embeddingLoading && (
+        <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
+          <div className="w-[85%] max-w-sm bg-white/95 rounded-3xl p-6 shadow-2xl border border-border">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Loading Face Data</p>
+                <p className="text-xs text-muted">{embeddingStatus}</p>
+              </div>
+            </div>
+            <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '100%' }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Model download — small non-blocking pill at top */}
+      {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
+        <div className="absolute top-[10rem] inset-x-0 flex justify-center z-20 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl px-4 py-2.5 shadow-sm w-[70%] max-w-xs">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="font-semibold text-foreground">🧠 AI Model</span>
+              <span className="text-muted font-bold">{Math.round(modelDownloadPct)}%</span>
+            </div>
+            <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-300"
+                style={{ width: `${modelDownloadPct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Light frosted mask with glowing oval */}
       <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
