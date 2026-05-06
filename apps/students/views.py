@@ -151,6 +151,19 @@ class StudentRegistrationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Block new registrations when the window is closed.
+        # Admins and Superadmins can register students at any time.
+        caller_is_admin = (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in ('superadmin', 'admin')
+        )
+        if not caller_is_admin and not semester.registration_open:
+            return Response(
+                {'error': 'Registration is currently closed. New registrations are not being accepted.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Build data with semester
         data = request.data.copy()
         data['semester'] = str(semester.id)
@@ -312,9 +325,11 @@ class FaceSampleUploadView(APIView):
             )
 
         # --- Registration window check ---
-        # Admins and Superadmins can upload face samples at any time.
-        # Unauthenticated users (self-registering students) are blocked
-        # when the registration window is closed.
+        # Admins/Superadmins can upload face samples at any time.
+        # When registration is closed, students who already submitted the form
+        # but haven't completed face capture (face_registered=False) can still
+        # finish — only brand-new form submissions are blocked (see StudentRegistrationView).
+        # Students who already completed face registration have nothing left to do.
         caller_is_admin = (
             request.user
             and request.user.is_authenticated
@@ -322,9 +337,9 @@ class FaceSampleUploadView(APIView):
         )
         if not caller_is_admin:
             semester = student.semester
-            if not semester.registration_open:
+            if not semester.registration_open and student.face_registered:
                 return Response(
-                    {'error': 'Registration is currently closed. Face upload is not permitted.'},
+                    {'error': 'Registration is currently closed.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 

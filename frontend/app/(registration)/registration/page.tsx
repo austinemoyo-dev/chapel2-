@@ -5,12 +5,119 @@ import { useRouter } from 'next/navigation';
 import { registrationService } from '@/lib/api/registrationService';
 import Spinner from '@/components/ui/Spinner';
 
+function ClosedPage() {
+  const router = useRouter();
+  const [identifier, setIdentifier] = useState('');
+  const [looking, setLooking]       = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [found, setFound] = useState<{ id: string; full_name: string; face_registered: boolean; semester: string } | null>(null);
+
+  async function handleResume() {
+    if (!identifier.trim()) return;
+    setLooking(true);
+    setLookupError('');
+    setFound(null);
+    try {
+      const data = await registrationService.lookupStudent(identifier.trim());
+      setFound({ id: data.id, full_name: data.full_name, face_registered: data.face_registered, semester: data.semester });
+    } catch {
+      setLookupError('No registration found. Check your matric number, phone, or system ID.');
+    } finally {
+      setLooking(false);
+    }
+  }
+
+  return (
+    <div className="px-6 py-10 animate-fade-in">
+      {/* Closed banner */}
+      <div className="text-center mb-8">
+        <div className="w-20 h-20 mx-auto rounded-3xl glass-purple flex items-center justify-center mb-5
+                        shadow-[0_8px_32px_rgba(139,0,255,0.18)]">
+          <svg className="w-9 h-9 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+          </svg>
+        </div>
+        <h2 className="text-2xl font-black text-foreground mb-2 tracking-tight">Registration Closed</h2>
+        <p className="text-muted text-sm leading-relaxed max-w-xs mx-auto">
+          New registrations are not being accepted right now.
+        </p>
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted font-semibold uppercase tracking-wider">Already registered?</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* Resume section */}
+      <div className="rounded-[1.4rem] p-5 mb-4"
+           style={{
+             background: 'rgba(255,255,255,0.55)',
+             backdropFilter: 'blur(24px)',
+             border: '1.5px solid rgba(255,255,255,0.60)',
+             boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+           }}>
+        <p className="text-sm font-bold text-foreground mb-1">Resume face capture</p>
+        <p className="text-xs text-muted mb-4 leading-relaxed">
+          If you filled the form but couldn&apos;t complete your face photos, enter your details below to continue.
+        </p>
+        <input
+          type="text"
+          value={identifier}
+          onChange={(e) => { setIdentifier(e.target.value); setLookupError(''); setFound(null); }}
+          onKeyDown={(e) => e.key === 'Enter' && void handleResume()}
+          placeholder="Matric number, phone, or System ID"
+          className="w-full px-4 py-3 rounded-xl border border-border bg-white text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 mb-3"
+        />
+
+        {lookupError && (
+          <p className="text-xs text-danger mb-3">{lookupError}</p>
+        )}
+
+        {found && (
+          <div className={`rounded-xl p-3.5 mb-3 ${found.face_registered ? 'bg-success-muted border border-success/20' : 'bg-primary/5 border border-primary/20'}`}>
+            <p className="text-sm font-bold text-foreground">{found.full_name}</p>
+            {found.face_registered ? (
+              <p className="text-xs text-success mt-0.5">Face capture already complete ✓</p>
+            ) : (
+              <p className="text-xs text-primary mt-0.5">Face capture incomplete — you can continue</p>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={() => {
+            if (found && !found.face_registered) {
+              router.push(`/registration/face-capture?student_id=${found.id}&semester=${found.semester}`);
+            } else if (!found) {
+              void handleResume();
+            }
+          }}
+          disabled={looking || !identifier.trim() || (!!found && found.face_registered)}
+          className="w-full py-3 rounded-xl bg-primary text-white text-sm font-bold disabled:opacity-40 transition-opacity"
+        >
+          {looking ? 'Looking up…' : found && !found.face_registered ? 'Continue Face Capture →' : 'Look Up My Registration'}
+        </button>
+      </div>
+
+      <div className="text-center">
+        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-xs text-muted font-semibold">
+          <span className="w-2 h-2 rounded-full bg-danger" />
+          New registrations closed
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function RegistrationPage() {
   const router = useRouter();
-  const [loading, setLoading]  = useState(true);
-  const [isOpen, setIsOpen]    = useState(false);
-  const [semesterId, setSemId] = useState('');
-  const [semName, setSemName]  = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [isOpen, setIsOpen]     = useState(false);
+  const [semesterId, setSemId]  = useState('');
+  const [semName, setSemName]   = useState('');
   const [pressing, setPressing] = useState<'old' | 'new' | null>(null);
 
   useEffect(() => {
@@ -36,26 +143,7 @@ export default function RegistrationPage() {
   }
 
   if (!isOpen) {
-    return (
-      <div className="px-8 py-12 text-center animate-fade-in">
-        <div className="w-20 h-20 mx-auto rounded-3xl glass-purple flex items-center justify-center mb-6
-                        shadow-[0_8px_32px_rgba(139,0,255,0.18)]">
-          <svg className="w-9 h-9 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
-          </svg>
-        </div>
-        <h2 className="text-2xl font-black text-foreground mb-3 tracking-tight">Registration Closed</h2>
-        <p className="text-muted text-sm leading-relaxed max-w-xs mx-auto">
-          The semester registration window is currently closed.
-          Please check back later or contact the chapel office.
-        </p>
-        <div className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-xs text-muted font-semibold">
-          <span className="w-2 h-2 rounded-full bg-danger" />
-          Registration is not accepting new submissions
-        </div>
-      </div>
-    );
+    return <ClosedPage />;
   }
 
   const navigate = (type: 'old' | 'new') =>
