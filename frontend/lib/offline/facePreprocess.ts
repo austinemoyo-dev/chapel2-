@@ -1,9 +1,19 @@
 'use client';
 // ============================================================================
-// facePreprocess - ArcFace face alignment and tensor preparation.
+// facePreprocess — ArcFace face alignment and tensor preparation.
+//
+// The 5 source landmarks must match InsightFace's RetinaFace detections as
+// closely as possible so client-side ArcFace embeddings are comparable to
+// the server-stored InsightFace embeddings.
+//
+// MediaPipe FaceLandmarker (478-point model) provides iris center landmarks:
+//   468 = left iris center  (equivalent to RetinaFace left-eye keypoint)
+//   473 = right iris center (equivalent to RetinaFace right-eye keypoint)
+// When iris landmarks are unavailable we fall back to eye-corner midpoints.
 // ============================================================================
 
-// ArcFace 112x112 five-point template used by InsightFace.
+// ArcFace 112×112 five-point template — identical to InsightFace's reference.
+// Order: left_eye, right_eye, nose_tip, left_mouth_corner, right_mouth_corner.
 const DST: [number, number][] = [
   [38.2946, 51.6963],
   [73.5318, 51.5014],
@@ -12,17 +22,24 @@ const DST: [number, number][] = [
   [70.7299, 92.2041],
 ];
 
-const LM_IDX = {
-  leftEye: [33, 133],
-  rightEye: [362, 263],
-  nose: 1,
-  mouthCorners: [61, 291],
+// Primary landmark indices (iris centers — closest to RetinaFace keypoints).
+// Fallback eye-corner pairs used when iris detection is unavailable.
+const LM = {
+  leftIris:    468,
+  rightIris:   473,
+  leftEyeA:     33,  // inner corner
+  leftEyeB:    133,  // outer corner
+  rightEyeA:   362,
+  rightEyeB:   263,
+  nose:          1,
+  leftMouth:    61,
+  rightMouth:  291,
 } as const;
 
 type Point = [number, number];
 
-function toPoint(landmark: { x: number; y: number }, vw: number, vh: number): Point {
-  return [landmark.x * vw, landmark.y * vh];
+function toPoint(lm: { x: number; y: number }, vw: number, vh: number): Point {
+  return [lm.x * vw, lm.y * vh];
 }
 
 function midpoint(a: Point, b: Point): Point {
@@ -30,36 +47,46 @@ function midpoint(a: Point, b: Point): Point {
 }
 
 /**
- * Least-squares similarity transform from src to dst:
- *   u = a*x - b*y + tx
- *   v = b*x + a*y + ty
+ * Return the best available eye-center point.
+ * Prefers the iris center landmark (most accurate); falls back to the
+ * midpoint of the two eye-corner landmarks when iris is not detected.
+ */
+function eyeCenter(
+  landmarks: { x: number; y: number; z: number }[],
+  iris: number,
+  cornerA: number,
+  cornerB: number,
+  vw: number,
+  vh: number,
+): Point {
+  if (landmarks.length > iris) {
+    return toPoint(landmarks[iris], vw, vh);
+  }
+  return midpoint(toPoint(landmarks[cornerA], vw, vh), toPoint(landmarks[cornerB], vw, vh));
+}
+
+/**
+ * Least-squares similarity transform (scale + rotation + translation) that
+ * maps src points to dst points:
+ *   u = a·x − b·y + tx
+ *   v = b·x + a·y + ty
  */
 function estimateSimilarityTransform(src: Point[], dst: Point[]): [number, number, number, number] {
   const n = src.length;
   let srcCx = 0, srcCy = 0, dstCx = 0, dstCy = 0;
-
   for (let i = 0; i < n; i++) {
-    srcCx += src[i][0];
-    srcCy += src[i][1];
-    dstCx += dst[i][0];
-    dstCy += dst[i][1];
+    srcCx += src[i][0]; srcCy += src[i][1];
+    dstCx += dst[i][0]; dstCy += dst[i][1];
   }
-
-  srcCx /= n;
-  srcCy /= n;
-  dstCx /= n;
-  dstCy /= n;
+  srcCx /= n; srcCy /= n; dstCx /= n; dstCy /= n;
 
   let numA = 0, numB = 0, den = 0;
   for (let i = 0; i < n; i++) {
-    const x = src[i][0] - srcCx;
-    const y = src[i][1] - srcCy;
-    const u = dst[i][0] - dstCx;
-    const v = dst[i][1] - dstCy;
-
+    const x = src[i][0] - srcCx, y = src[i][1] - srcCy;
+    const u = dst[i][0] - dstCx, v = dst[i][1] - dstCy;
     numA += x * u + y * v;
     numB += x * v - y * u;
-    den += x * x + y * y;
+    den  += x * x + y * y;
   }
 
   if (den < 1e-10) return [1, 0, 0, 0];
@@ -68,12 +95,12 @@ function estimateSimilarityTransform(src: Point[], dst: Point[]): [number, numbe
   const b = numB / den;
   const tx = dstCx - a * srcCx + b * srcCy;
   const ty = dstCy - b * srcCx - a * srcCy;
-
   return [a, b, tx, ty];
 }
 
 /**
- * Extract and align a 112x112 face crop from the current video frame.
+ * Extract and align a 112×112 face crop from the current video frame,
+ * using the same 5-point alignment as InsightFace's buffalo_l pipeline.
  */
 export function alignFace(
   video: HTMLVideoElement,
@@ -83,26 +110,22 @@ export function alignFace(
 ): ImageData | null {
   if (!landmarks || landmarks.length < 400) return null;
 
-  const eyeA = midpoint(
-    toPoint(landmarks[LM_IDX.leftEye[0]], vw, vh),
-    toPoint(landmarks[LM_IDX.leftEye[1]], vw, vh),
-  );
-  const eyeB = midpoint(
-    toPoint(landmarks[LM_IDX.rightEye[0]], vw, vh),
-    toPoint(landmarks[LM_IDX.rightEye[1]], vw, vh),
-  );
-  const mouthA = toPoint(landmarks[LM_IDX.mouthCorners[0]], vw, vh);
-  const mouthB = toPoint(landmarks[LM_IDX.mouthCorners[1]], vw, vh);
+  const leftEye  = eyeCenter(landmarks, LM.leftIris,  LM.leftEyeA,  LM.leftEyeB,  vw, vh);
+  const rightEye = eyeCenter(landmarks, LM.rightIris, LM.rightEyeA, LM.rightEyeB, vw, vh);
 
-  const [leftEye, rightEye] = eyeA[0] <= eyeB[0] ? [eyeA, eyeB] : [eyeB, eyeA];
-  const [leftMouth, rightMouth] = mouthA[0] <= mouthB[0] ? [mouthA, mouthB] : [mouthB, mouthA];
+  // Ensure left/right ordering is correct regardless of camera mirroring.
+  const [le, re] = leftEye[0] <= rightEye[0] ? [leftEye, rightEye] : [rightEye, leftEye];
+
+  const mouthL = toPoint(landmarks[LM.leftMouth],  vw, vh);
+  const mouthR = toPoint(landmarks[LM.rightMouth], vw, vh);
+  const [lm, rm] = mouthL[0] <= mouthR[0] ? [mouthL, mouthR] : [mouthR, mouthL];
 
   const src: Point[] = [
-    leftEye,
-    rightEye,
-    toPoint(landmarks[LM_IDX.nose], vw, vh),
-    leftMouth,
-    rightMouth,
+    le,
+    re,
+    toPoint(landmarks[LM.nose], vw, vh),
+    lm,
+    rm,
   ];
 
   const [a, b, tx, ty] = estimateSimilarityTransform(src, DST);
