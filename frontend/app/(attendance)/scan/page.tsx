@@ -267,23 +267,16 @@ export default function ScanPage() {
         const hasFace = skinToneRatio >= 0.5;
         setFaceDetected(hasFace);
 
-        // ── READY: wait for a stable face, then issue liveness challenge ────
+        // ── READY: wait for a stable face, then auto-capture ────
         if (currentPhase === 'ready') {
           if (hasFace && isStable) {
             if (!holdStartRef.current) {
               holdStartRef.current = Date.now();
-            } else if (Date.now() - holdStartRef.current >= 400) {
+            } else if (Date.now() - holdStartRef.current >= 200) { // reduced from 400ms to 200ms
               holdStartRef.current = null;
-              // Pick a random challenge and switch to liveness phase
-              const challenge = LIVENESS_CHALLENGES[
-                Math.floor(Math.random() * LIVENESS_CHALLENGES.length)
-              ];
-              livenessPassRef.current     = false;
-              livenessDeadlineRef.current  = Date.now() + LIVENESS_TIMEOUT_MS;
-              livenessChallengeRef.current = challenge;   // readable inside interval
-              setLivenessChallenge(challenge);
-              setLivenessProgress(0);
-              setPhase('liveness');
+              // Skip liveness challenge for protocol scanners to maximize speed
+              setPhase('scanning');
+              void handleCapture();
             }
           } else {
             holdStartRef.current = null;
@@ -504,10 +497,10 @@ export default function ScanPage() {
   }
 
   // Auto-reset delays:
-  //   2000ms on success — protocol member reads + confirms the student name
-  //   1500ms on warning/error — sees the rejection reason before next scan
+  //   3500ms on success — so student can confirm their name (increased from 2s)
+  //   2500ms on warning/error — sees the rejection reason before next scan
   function scheduleAutoReset(resultType: ResultType) {
-    const delay = resultType === 'success' ? 2000 : 1500;
+    const delay = resultType === 'success' ? 3500 : 2500;
     setTimeout(() => {
       if (phaseRef.current === 'result') resetScan();
     }, delay);
