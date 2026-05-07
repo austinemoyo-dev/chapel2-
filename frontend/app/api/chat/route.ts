@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     };
 
     if (!Array.isArray(messages) || messages.length === 0) {
-      return new Response('Invalid messages', { status: 400 });
+      return Response.json({ error: 'Invalid messages' }, { status: 400 });
     }
 
     // Keep last 10 turns to stay within context limits
@@ -136,7 +136,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error('[Chat] Request error:', err);
-    return new Response('Server error', { status: 500 });
+    const message = err instanceof Error ? err.message : 'Unknown server error';
+    console.error('[Chat] Request error:', message);
+    // Return the real error so the client can display it
+    return Response.json({ error: message }, { status: 500 });
   }
 }

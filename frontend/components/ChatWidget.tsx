@@ -78,9 +78,15 @@ export default function ChatWidget() {
       });
 
       if (!res.ok) {
-        const msg = res.status === 429
-          ? 'Too many messages — please wait a moment and try again.'
-          : 'Something went wrong. Please try again.';
+        let msg = 'Something went wrong. Please try again.';
+        if (res.status === 429) {
+          msg = 'Too many messages — please wait a moment and try again.';
+        } else {
+          try {
+            const body = await res.json() as { error?: string };
+            if (body.error) msg = body.error;
+          } catch { /* ignore parse error, keep generic message */ }
+        }
         throw new Error(msg);
       }
 
