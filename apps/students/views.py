@@ -632,6 +632,58 @@ class AdminStudentDetailView(generics.RetrieveUpdateAPIView):
     lookup_field = 'id'
 
 
+class ResetFaceCaptureView(APIView):
+    """
+    DELETE /api/admin/students/{id}/reset-face/
+
+    Delete all face samples for a student who has maxed out their 5 attempts
+    without achieving 3 approved samples, so they can try again.
+
+    Blocked if the student has already completed face registration
+    (face_registered=True) — there is nothing to reset.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    @transaction.atomic
+    def delete(self, request, id):
+        try:
+            student = Student.objects.get(id=id)
+        except Student.DoesNotExist:
+            return Response(
+                {'error': 'Student not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if student.face_registered:
+            return Response(
+                {'error': 'This student has already completed face registration. No reset needed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_count = student.face_samples.count()
+        student.face_samples.all().delete()
+
+        # Recalculate activation (will be False since face_registered stays False)
+        student.face_registered = False
+        student.is_active = False
+        student.save(update_fields=['face_registered', 'is_active'])
+
+        log_action(
+            actor=request.user,
+            action_type='FACE_CAPTURE_RESET',
+            target_type='Student',
+            target_id=student.id,
+            previous_value={'face_samples_deleted': deleted_count},
+            new_value={'face_registered': False, 'is_active': False},
+            reason_note=request.data.get('reason', 'Admin reset — student maxed out face attempts'),
+        )
+
+        return Response({
+            'message': f'Face capture reset. {deleted_count} sample(s) deleted. Student can now try again.',
+            'deleted_count': deleted_count,
+        })
+
+
 class AdminStudentDeleteView(APIView):
     """
     DELETE /api/admin/students/{id}/

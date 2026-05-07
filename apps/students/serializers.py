@@ -128,6 +128,7 @@ class StudentListSerializer(serializers.ModelSerializer):
 class StudentDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer including face sample count and attendance info."""
     approved_face_samples = serializers.SerializerMethodField()
+    total_face_samples    = serializers.SerializerMethodField()
     semester_name = serializers.CharField(source='semester.name', read_only=True)
 
     class Meta:
@@ -138,11 +139,14 @@ class StudentDetailSerializer(serializers.ModelSerializer):
             'faculty', 'department', 'level', 'gender', 'profile_photo',
             'face_registered', 'service_group', 'semester', 'semester_name',
             'is_active', 'duplicate_flag', 'duplicate_details',
-            'created_by', 'created_at', 'approved_face_samples',
+            'created_by', 'created_at', 'approved_face_samples', 'total_face_samples',
         ]
 
     def get_approved_face_samples(self, obj):
         return obj.face_samples.filter(status='approved').count()
+
+    def get_total_face_samples(self, obj):
+        return obj.face_samples.count()
 
 
 class FaceSampleUploadSerializer(serializers.ModelSerializer):

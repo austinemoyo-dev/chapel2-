@@ -170,8 +170,9 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   const [showDelete, setShowDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showBackdate, setShowBackdate] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [matricLink, setMatricLink] = useState<{
     token: string;
     system_id: string;
@@ -208,6 +209,24 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
       addToast('Delete failed', 'error');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleResetFace() {
+    if (!student) return;
+    if (!confirm(`Reset face capture for ${student.full_name}? All ${student.total_face_samples ?? 0} sample(s) will be deleted so they can try again.`)) return;
+    setResetting(true);
+    try {
+      const result = await adminService.resetFaceCapture(id);
+      addToast(result.message, 'success');
+      // Refresh student data so counts update
+      const updated = await adminService.getStudent(id);
+      setStudent(updated);
+      setForm(updated);
+    } catch {
+      addToast('Reset failed — please try again.', 'error');
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -314,7 +333,28 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="primary" size="sm" onClick={() => window.location.href = `/registration/face-capture?student=${student.id}&semester=${student.semester}`}>Assist Capture</Button>
+              {/* Opens in a new tab so the admin session is never interrupted */}
+              <a
+                href={`/registration/face-capture?student=${student.id}&semester=${student.semester}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Assist Capture ↗
+              </a>
+
+              {/* Reset face capture — only for students who maxed out without succeeding */}
+              {!student.face_registered && (student.total_face_samples ?? 0) >= 5 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => void handleResetFace()}
+                  disabled={resetting}
+                >
+                  {resetting ? 'Resetting…' : 'Reset Face Capture'}
+                </Button>
+              )}
+
               {liveServices.length > 0 && (
                 <Button variant="success" size="sm" onClick={() => void handleManualCheckIn(liveServices[0].id)}>Manual Check-in</Button>
               )}
@@ -366,9 +406,10 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
               </div>
               <div className="rounded-xl glass-card border border-border/50 p-4">
                 <p className="text-xs text-muted">Face Samples</p>
-                <p className={`text-lg font-bold mt-1 ${student.face_registered ? 'text-success' : 'text-warning'}`}>
-                  {student.approved_face_samples ?? 0}/5
+                <p className={`text-lg font-bold mt-1 ${student.face_registered ? 'text-success' : (student.total_face_samples ?? 0) >= 5 ? 'text-danger' : 'text-warning'}`}>
+                  {student.approved_face_samples ?? 0} approved
                 </p>
+                <p className="text-[11px] text-muted mt-0.5">{student.total_face_samples ?? 0}/5 attempts used</p>
               </div>
               <div className="rounded-xl glass-card border border-border/50 p-4">
                 <p className="text-xs text-muted">Duplicate Flag</p>

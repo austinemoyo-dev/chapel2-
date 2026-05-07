@@ -58,6 +58,9 @@ export const adminService = {
   deleteStudent: (id: string) =>
     api.delete<{ message: string }>(`/api/admin/students/${id}/delete/`),
 
+  resetFaceCapture: (id: string) =>
+    api.delete<{ message: string; deleted_count: number }>(`/api/admin/students/${id}/reset-face/`),
+
   // Duplicates
   resolveDuplicate: (data: DuplicateResolveRequest) =>
     api.post<{ message: string }>('/api/admin/duplicates/resolve/', data),

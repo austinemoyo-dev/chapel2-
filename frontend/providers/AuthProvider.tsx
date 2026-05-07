@@ -51,16 +51,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.USER);
-      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-      if (stored && token) {
-        const payload = decodeJWT(token);
-        if (payload && payload.exp > Date.now() / 1000) {
+      const stored  = localStorage.getItem(STORAGE_KEYS.USER);
+      const token   = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      const refresh = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+
+      if (stored && (token || refresh)) {
+        if (token) {
+          const payload = decodeJWT(token);
+          if (payload && payload.exp > Date.now() / 1000) {
+            // Access token still valid — restore session immediately.
+            setUser(JSON.parse(stored));
+          } else if (refresh) {
+            // Access token expired but refresh token exists.
+            // Keep the user logged in — the API client will silently refresh
+            // on the next authenticated request. This prevents admins from
+            // being logged out while on AllowAny pages (e.g. registration/
+            // face-capture) where no API call triggers a proactive refresh.
+            setUser(JSON.parse(stored));
+          } else {
+            // Both tokens gone — clear everything.
+            localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.USER);
+          }
+        } else if (refresh) {
+          // No access token at all but refresh exists — optimistically restore.
           setUser(JSON.parse(stored));
-        } else {
-          localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-          localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-          localStorage.removeItem(STORAGE_KEYS.USER);
         }
       }
     } catch {

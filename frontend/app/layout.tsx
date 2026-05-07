@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ToastProvider } from '@/providers/ToastProvider';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import ChatWidget from '@/components/ChatWidget';
 
 export const metadata: Metadata = {
   title: 'VU Chapel',
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </ToastProvider>
         </AuthProvider>
         <ServiceWorkerRegister />
+        <ChatWidget />
       </body>
     </html>
   );

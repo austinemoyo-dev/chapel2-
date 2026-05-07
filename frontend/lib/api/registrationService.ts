@@ -54,6 +54,7 @@ export interface Student {
   created_by?: string | null;
   created_at: string;
   approved_face_samples?: number;
+  total_face_samples?: number;
 }
 
 export interface FaceSampleResponse {
