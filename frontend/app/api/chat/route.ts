@@ -1,7 +1,18 @@
 import Groq from 'groq-sdk';
 import { NextRequest } from 'next/server';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// Lazy singleton — instantiated on first request, not at build time.
+// The Groq constructor throws if the key is missing, so we must not call it
+// during `next build` when environment secrets are not yet injected.
+let _groq: Groq | null = null;
+function getGroq(): Groq {
+  if (!_groq) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY is not set. Add it to your environment variables.');
+    _groq = new Groq({ apiKey });
+  }
+  return _groq;
+}
 
 const SYSTEM = `You are the VU Chapel Attendance Assistant — a smart, friendly support bot for the VU Chapel Attendance Management System. You help students with registration, face capture, attendance, and service groups.
 
@@ -89,7 +100,7 @@ export async function POST(req: NextRequest) {
     // Keep last 10 turns to stay within context limits
     const recent = messages.slice(-10);
 
-    const groqStream = await groq.chat.completions.create({
+    const groqStream = await getGroq().chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       max_tokens: 768,
       temperature: 0.4,
