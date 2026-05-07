@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -30,7 +31,11 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
+// Pages where the chatbot should not appear (admin panels, scanner, monitor).
+const HIDDEN_PREFIXES = ['/admin', '/scan', '/monitor'];
+
 export default function ChatWidget() {
+  const pathname = usePathname();
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput]       = useState('');
@@ -123,6 +128,9 @@ export default function ChatWidget() {
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); }
   };
+
+  // Don't render on staff/admin pages — it overlaps the nav bar
+  if (HIDDEN_PREFIXES.some((p) => pathname?.startsWith(p))) return null;
 
   return (
     <>
