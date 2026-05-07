@@ -70,7 +70,7 @@ export default function ChatWidget() {
     abortRef.current = new AbortController();
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: nextMessages }),
