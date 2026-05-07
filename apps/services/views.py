@@ -221,16 +221,42 @@ class ServiceDetailView(generics.RetrieveUpdateAPIView):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        old_data = ServiceSerializer(self.get_object()).data
-        service = serializer.save()
-        log_action(
-            actor=self.request.user,
-            action_type='SERVICE_EDITED',
-            target_type='Service',
-            target_id=service.id,
-            previous_value=old_data,
-            new_value=ServiceSerializer(service).data,
-        )
+        try:
+            old_instance = self.get_object()
+            old_data = {
+                'service_type':      old_instance.service_type,
+                'service_group':     old_instance.service_group,
+                'name':              old_instance.name,
+                'scheduled_date':    str(old_instance.scheduled_date),
+                'window_open_time':  old_instance.window_open_time.isoformat() if old_instance.window_open_time else None,
+                'window_close_time': old_instance.window_close_time.isoformat() if old_instance.window_close_time else None,
+                'signout_required':  old_instance.signout_required,
+                'capacity_cap':      old_instance.capacity_cap,
+                'is_cancelled':      old_instance.is_cancelled,
+            }
+            service = serializer.save()
+            new_data = {
+                'service_type':      service.service_type,
+                'service_group':     service.service_group,
+                'name':              service.name,
+                'scheduled_date':    str(service.scheduled_date),
+                'window_open_time':  service.window_open_time.isoformat() if service.window_open_time else None,
+                'window_close_time': service.window_close_time.isoformat() if service.window_close_time else None,
+                'signout_required':  service.signout_required,
+                'capacity_cap':      service.capacity_cap,
+                'is_cancelled':      service.is_cancelled,
+            }
+            log_action(
+                actor=self.request.user,
+                action_type='SERVICE_EDITED',
+                target_type='Service',
+                target_id=service.id,
+                previous_value=old_data,
+                new_value=new_data,
+            )
+        except Exception as exc:
+            logger.exception('perform_update failed: %s', exc)
+            raise
 
 
 class ServiceCancelView(APIView):
@@ -300,6 +326,7 @@ class GeoFenceView(APIView):
 
     @transaction.atomic
     def patch(self, request):
+        from django.core.cache import cache
         config = GeoFenceConfig.get_config()
         old_data = GeoFenceSerializer(config).data
 
@@ -307,6 +334,7 @@ class GeoFenceView(APIView):
         serializer.is_valid(raise_exception=True)
 
         config = serializer.save(updated_by=request.user)
+        cache.delete('geofence_config')
 
         log_action(
             actor=request.user,
@@ -328,6 +356,7 @@ class GeoFenceView(APIView):
         Reset geo-fence to unconfigured (latitude=0, longitude=0).
         Attendance marking will be blocked until a new location is set.
         """
+        from django.core.cache import cache
         config = GeoFenceConfig.get_config()
         old_data = GeoFenceSerializer(config).data
 
@@ -336,6 +365,7 @@ class GeoFenceView(APIView):
         config.radius_meters = 200
         config.updated_by    = request.user
         config.save()
+        cache.delete('geofence_config')
 
         log_action(
             actor=request.user,

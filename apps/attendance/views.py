@@ -135,7 +135,7 @@ class SignInView(APIView):
                     )
 
             if embedding:
-                match_result = match_face_1_to_n(embedding, service_id)
+                match_result = match_face_1_to_n(embedding, service_id, service=service)
                 if not match_result['matched']:
                     return Response({
                         'error': match_result['message'],
@@ -268,7 +268,7 @@ class SignOutView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             if embedding:
-                match_result = match_face_1_to_n(embedding, service_id)
+                match_result = match_face_1_to_n(embedding, service_id, service=service)
                 if not match_result['matched']:
                     return Response(
                         {'error': match_result['message']},
@@ -354,14 +354,26 @@ class OfflineSyncView(APIView):
         serializer.is_valid(raise_exception=True)
 
         records = serializer.validated_data['records']
-        results = []
 
+        # Pre-fetch all referenced services and active students in two queries
+        # instead of one DB round-trip per record.
+        service_ids = {r['service_id'] for r in records}
+        student_ids = {r['student_id'] for r in records}
+        services = {s.id: s for s in Service.objects.filter(id__in=service_ids)}
+        students = {
+            s.id: s
+            for s in Student.objects.filter(id__in=student_ids, is_active=True)
+        }
+
+        results = []
         for idx, record_data in enumerate(records):
             # Each record gets its own savepoint so that a DB error on one
             # record does not roll back the entire batch.
             try:
                 with transaction.atomic():
-                    result = self._validate_and_create_record(record_data, request.user)
+                    result = self._validate_and_create_record(
+                        record_data, request.user, services, students
+                    )
             except Exception as exc:
                 logger.error(f'Unexpected error processing offline record {idx}: {exc}')
                 result = {
@@ -384,7 +396,7 @@ class OfflineSyncView(APIView):
             'results': results,
         })
 
-    def _validate_and_create_record(self, record_data, protocol_member):
+    def _validate_and_create_record(self, record_data, protocol_member, services, students):
         """
         Validate a single offline record and create if valid.
         Returns dict with status and details.
@@ -397,10 +409,9 @@ class OfflineSyncView(APIView):
         gps_lng = record_data['gps_lng']
         timestamp = record_data['timestamp']
 
-        # Get service
-        try:
-            service = Service.objects.get(id=service_id)
-        except Service.DoesNotExist:
+        # Resolve from pre-fetched maps — no DB query per record
+        service = services.get(service_id)
+        if service is None:
             return {'status': 'rejected', 'reason': 'Service not found.'}
 
         # Validate timestamp within service window
@@ -411,7 +422,7 @@ class OfflineSyncView(APIView):
                 'validation': 'time_window',
             }
 
-        # Validate geo-fence
+        # Validate geo-fence (config is cached; one DB hit for the whole batch)
         geo_valid, geo_distance, geo_msg = validate_geo_fence(gps_lat, gps_lng)
         if not geo_valid:
             return {
@@ -429,10 +440,9 @@ class OfflineSyncView(APIView):
                 'validation': 'device_binding',
             }
 
-        # Get student
-        try:
-            student = Student.objects.get(id=student_id, is_active=True)
-        except Student.DoesNotExist:
+        # Resolve student from pre-fetched map
+        student = students.get(student_id)
+        if student is None:
             return {'status': 'rejected', 'reason': 'Student not found or inactive.'}
 
         if attendance_type == 'sign_in':

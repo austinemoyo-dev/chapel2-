@@ -13,7 +13,7 @@ import { cacheEmbeddings, getCachedEmbeddings, getQueueCount, addToQueue } from 
 import { syncOfflineRecords, registerBackgroundSync } from '@/lib/offline/syncManager';
 import { downloadAndCacheModel, isModelReady, extractEmbedding } from '@/lib/offline/faceModel';
 import { alignFace, imageDataToFloat32 } from '@/lib/offline/facePreprocess';
-import { matchOffline } from '@/lib/offline/offlineMatcher';
+import { buildNormalisedPool, matchNormalised, type NormalisedPool } from '@/lib/offline/offlineMatcher';
 import { LIVENESS_CHALLENGES } from '@/lib/utils/constants';
 import { ApiError } from '@/lib/api/client';
 import Button from '@/components/ui/Button';
@@ -50,6 +50,13 @@ export default function ScanPage() {
   // Stores the most recent MediaPipe landmarks so handleCapture() can use
   // them for face alignment without re-running detection.
   const lastLandmarksRef = useRef<{ x: number; y: number; z: number }[] | null>(null);
+
+  // Pre-normalised embedding pool — rebuilt once when embeddings load, then
+  // reused on every scan. Eliminates IndexedDB reads and per-scan normalisation.
+  const normPoolRef = useRef<NormalisedPool[]>([]);
+  useEffect(() => {
+    normPoolRef.current = buildNormalisedPool(embeddings);
+  }, [embeddings]);
 
   // Liveness
   const [livenessChallenge, setLivenessChallenge] = useState<typeof LIVENESS_CHALLENGES[number] | null>(null);
@@ -399,9 +406,10 @@ export default function ScanPage() {
       try {
         const embedding = await extractCurrentFaceEmbedding();
 
-        // 1-to-N cosine match against cached student pool
-        const pool = await getCachedEmbeddings(selectedService.id);
-        if (!pool || !pool.embeddings || pool.embeddings.length === 0) {
+        // 1-to-N cosine match against the pre-normalised in-memory pool.
+        // Avoids reading from IndexedDB on every scan.
+        const pool = normPoolRef.current;
+        if (pool.length === 0) {
           setResult({ type: 'failed', name: '', message: 'No cached student embeddings. Select service again while online.' });
           setScanning(false);
           setPhase('result');
@@ -409,7 +417,7 @@ export default function ScanPage() {
           return;
         }
 
-        const match = matchOffline(embedding, pool);
+        const match = matchNormalised(embedding, pool);
         if (!match.matched || !match.student_id) {
           setResult({ type: 'failed', name: '', message: 'Face not recognised offline. Please try again.' });
           setScanning(false);
@@ -517,10 +525,10 @@ export default function ScanPage() {
   }
 
   // Auto-reset delays:
-  //   3500ms on success — so student can confirm their name (increased from 2s)
-  //   2500ms on warning/error — sees the rejection reason before next scan
+  //   1500ms on success — name flashes clearly, scanner resets quickly
+  //   1500ms on warning/error — rejection reason visible before next scan
   function scheduleAutoReset(resultType: ResultType) {
-    const delay = resultType === 'success' ? 3500 : 2500;
+    const delay = resultType === 'success' ? 1500 : 1500;
     setTimeout(() => {
       if (phaseRef.current === 'result') resetScan();
     }, delay);

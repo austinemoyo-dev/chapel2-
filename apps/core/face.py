@@ -361,8 +361,9 @@ class _Match1toNCache:
 
         Returns a dict safe for cache serialisation:
           {
-            'matrix':      list[list[float]],   # shape (N, 512)
-            'student_ids':  list[str],           # UUID strings, same row order
+            'matrix_bytes':  bytes,              # raw float64 buffer, shape (N, 512)
+            'matrix_shape':  tuple[int, int],
+            'student_ids':   list[str],          # UUID strings, same row order
             'student_names': list[str],
           }
         """
@@ -377,12 +378,21 @@ class _Match1toNCache:
             n = np.linalg.norm(vec)
             if n == 0:
                 continue
-            rows.append((vec / n).tolist())
+            rows.append(vec / n)
             student_ids.append(str(sample.student.id))
             student_names.append(sample.student.full_name)
 
+        if rows:
+            matrix_array = np.vstack(rows)
+            matrix_bytes = matrix_array.tobytes()
+            matrix_shape = matrix_array.shape
+        else:
+            matrix_bytes = b''
+            matrix_shape = (0, 0)
+
         return {
-            'matrix':        rows,
+            'matrix_bytes':  matrix_bytes,
+            'matrix_shape':  matrix_shape,
             'student_ids':   student_ids,
             'student_names': student_names,
         }
@@ -401,8 +411,8 @@ class _Match1toNCache:
         """
         threshold = float(getattr(settings, 'INSIGHTFACE_MATCH_THRESHOLD', 0.40))
 
-        matrix = pool.get('matrix', [])
-        if not matrix:
+        matrix_bytes = pool.get('matrix_bytes', b'')
+        if not matrix_bytes:
             return {
                 'matched': False, 'student_id': None,
                 'student_name': None, 'confidence': 0.0,
@@ -419,7 +429,9 @@ class _Match1toNCache:
             }
         probe = probe / probe_norm
 
-        mat          = np.array(matrix, dtype=np.float64)     # (N, 512)
+        # frombuffer is zero-copy — no Python list→ndarray conversion overhead
+        shape        = pool['matrix_shape']
+        mat          = np.frombuffer(matrix_bytes, dtype=np.float64).reshape(shape)
         similarities = mat @ probe                             # BLAS (N,)
         best_idx     = int(np.argmax(similarities))
         best_sim     = float(similarities[best_idx])

@@ -91,22 +91,38 @@ def haversine_distance(lat1, lng1, lat2, lng2):
     return R * c
 
 
+def _get_geofence_config():
+    """
+    Return geo-fence config as a plain tuple, cached for 60 seconds.
+    Avoids a DB round-trip on every scan request.
+    Invalidated explicitly by GeoFenceView on write/reset.
+    """
+    from django.core.cache import cache
+    from apps.services.models import GeoFenceConfig
+
+    cached = cache.get('geofence_config')
+    if cached is not None:
+        return cached
+    config = GeoFenceConfig.get_config()
+    cached = (float(config.latitude), float(config.longitude), float(config.radius_meters))
+    cache.set('geofence_config', cached, timeout=60)
+    return cached
+
+
 def validate_geo_fence(gps_lat, gps_lng):
     """
     Check if the given GPS coordinates are within the configured geo-fence.
-    
+
     Returns:
         tuple: (is_valid: bool, distance_meters: float, message: str)
     """
-    from apps.services.models import GeoFenceConfig
-
-    config = GeoFenceConfig.get_config()
+    lat, lng, radius = _get_geofence_config()
 
     # If geo-fence coordinates are still at the default (0, 0) the Superadmin
     # has not configured the chapel location yet.  Block all attendance marking
     # rather than silently skipping — this prevents a configuration gap from
     # becoming an open window for fraudulent marking.
-    if float(config.latitude) == 0.0 and float(config.longitude) == 0.0:
+    if lat == 0.0 and lng == 0.0:
         logger.error(
             'Geo-fence is not configured. Attendance marking is blocked. '
             'Superadmin must set chapel GPS coordinates via /api/geo-fence/.'
@@ -116,18 +132,15 @@ def validate_geo_fence(gps_lat, gps_lng):
             'Contact Superadmin to set the chapel GPS coordinates before marking attendance.'
         )
 
-    distance = haversine_distance(
-        gps_lat, gps_lng,
-        config.latitude, config.longitude
-    )
+    distance = haversine_distance(gps_lat, gps_lng, lat, lng)
 
-    if distance <= config.radius_meters:
+    if distance <= radius:
         return True, distance, f'Within geo-fence ({distance:.0f}m from center).'
     else:
         return False, distance, (
             f'Outside authorized geo-fence. '
             f'You are {distance:.0f}m from the chapel. '
-            f'Maximum allowed: {config.radius_meters}m.'
+            f'Maximum allowed: {radius:.0f}m.'
         )
 
 
@@ -150,7 +163,7 @@ def validate_device_binding(user, device_id):
     return True, 'Device verified.'
 
 
-def match_face_1_to_n(face_embedding, service_id):
+def match_face_1_to_n(face_embedding, service_id, service=None):
     """
     Perform 1-to-N face matching against the active service's student pool.
 
@@ -159,15 +172,15 @@ def match_face_1_to_n(face_embedding, service_id):
     or the entire semester for special (all-student) services.
 
     The pre-built normalised embedding matrix is cached in Django's in-process
-    memory cache for 5 minutes per service. This eliminates a repeated DB query
-    + NumPy stack rebuild on every scan during a live service session. The cache
-    invalidates automatically when:
-      - 5 minutes elapse (short TTL covers new registrations being activated)
-      - The process restarts (gunicorn worker recycle)
+    memory cache for 30 minutes per service. This eliminates repeated DB queries
+    and NumPy rebuilds during a live service session. The cache invalidates:
+      - After 30 minutes (covers new registrations being activated mid-session)
+      - On process restart (gunicorn worker recycle)
 
     Args:
         face_embedding: 512-dim list — ArcFace embedding from the live frame.
         service_id:     UUID — the active service instance.
+        service:        Optional pre-fetched Service object (skips DB lookup).
 
     Returns:
         dict with keys: matched, student_id, student_name, confidence, message.
@@ -177,14 +190,15 @@ def match_face_1_to_n(face_embedding, service_id):
     from apps.students.models import FaceSample
     from apps.core.face import match_1_to_n_cached
 
-    try:
-        service = Service.objects.get(id=service_id)
-    except Service.DoesNotExist:
-        return {
-            'matched': False, 'student_id': None,
-            'student_name': None, 'confidence': 0.0,
-            'message': 'Service not found.',
-        }
+    if service is None:
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return {
+                'matched': False, 'student_id': None,
+                'student_name': None, 'confidence': 0.0,
+                'message': 'Service not found.',
+            }
 
     cache_key = f'face_pool_{service_id}'
     pool = cache.get(cache_key)
@@ -200,16 +214,15 @@ def match_face_1_to_n(face_embedding, service_id):
 
         samples = FaceSample.objects.filter(**base_filter).select_related('student')
 
-        if not samples.exists():
+        # Build and cache the normalised matrix (1800 s = 30 min TTL)
+        pool = match_1_to_n_cached.build_pool(samples)
+        if not pool['student_ids']:
             return {
                 'matched': False, 'student_id': None,
                 'student_name': None, 'confidence': 0.0,
                 'message': 'No face embeddings available for this service pool.',
             }
-
-        # Build and cache the normalised matrix (300 s = 5 min TTL)
-        pool = match_1_to_n_cached.build_pool(samples)
-        cache.set(cache_key, pool, timeout=300)
+        cache.set(cache_key, pool, timeout=1800)
         logger.debug('Built embedding cache for service %s (%d vectors)', service_id, len(pool['student_ids']))
 
     return match_1_to_n_cached.match(face_embedding, pool)

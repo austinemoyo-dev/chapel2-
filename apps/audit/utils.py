@@ -4,10 +4,26 @@ Audit Utilities — Centralized audit log creation used throughout the system.
 All audit log writes should go through log_action() to ensure consistency
 and atomicity with the actions they log.
 """
+import json
 import logging
-from django.db import transaction
+from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value):
+    """
+    Round-trip a value through DjangoJSONEncoder so that uuid.UUID, datetime,
+    date, Decimal, and other non-standard types are converted to JSON-native
+    scalars before being stored in a JSONField.
+
+    This is needed when callers pass DRF serializer .data dicts, which may
+    contain raw uuid.UUID objects (PrimaryKeyRelatedField returns value.pk
+    directly) that the default stdlib json.JSONEncoder cannot handle.
+    """
+    if value is None:
+        return None
+    return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
 
 
 def log_action(
@@ -53,8 +69,8 @@ def log_action(
             action_type=action_type,
             target_type=target_type,
             target_id=target_id,
-            previous_value=previous_value,
-            new_value=new_value,
+            previous_value=_json_safe(previous_value),
+            new_value=_json_safe(new_value),
             reason_note=reason_note,
             device_id=device_id,
             gps_lat=gps_lat,
