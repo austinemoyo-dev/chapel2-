@@ -684,21 +684,35 @@ export default function ScanPage() {
     );
   }
 
+  // Corner bracket colour based on current phase
+  const cornerColor = phase === 'scanning'
+    ? 'bg-primary shadow-[0_0_10px_rgba(124,58,237,0.8)]'
+    : faceDetected
+    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
+    : 'bg-white/50';
+
   return (
-    <div className="h-dvh flex flex-col relative bg-surface overflow-hidden">
+    <div className="h-dvh flex flex-col relative bg-black overflow-hidden">
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Error Overlay */}
+      {/* Vignette — darkens edges, keeps face area bright */}
+      <div className="absolute inset-0 z-10 pointer-events-none" style={{
+        background: 'radial-gradient(ellipse 62% 68% at 50% 38%, transparent 20%, rgba(0,0,0,0.72) 100%)'
+      }} />
+
+      {/* ── Error Overlay ── */}
       {error && !isActive && (
-        <div className="absolute inset-0 z-40 bg-black/80 flex items-center justify-center p-6">
-          <div className="bg-surface rounded-2xl p-6 max-w-sm w-full text-center border border-warning/30 shadow-xl">
-            <div className="w-12 h-12 bg-warning/20 rounded-full flex items-center justify-center mx-auto mb-4 text-warning">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div className="absolute inset-0 z-50 bg-black/85 flex items-center justify-center p-6">
+          <div className="bg-surface rounded-3xl p-6 max-w-sm w-full text-center border border-warning/30 shadow-2xl">
+            <div className="w-14 h-14 bg-warning/15 rounded-2xl flex items-center justify-center mx-auto mb-4 text-warning">
+              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-            <p className="text-foreground font-bold mb-2">Camera Error</p>
-            <p className="text-muted text-sm mb-4">{error}</p>
+            <p className="text-foreground font-bold mb-1">Camera Error</p>
+            <p className="text-muted text-sm mb-5">{error}</p>
             <Button onClick={() => window.location.reload()} variant="primary" className="w-full">
               Reload Scanner
             </Button>
@@ -706,168 +720,180 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Embedding Loading Overlay — blocks camera only while downloading face data */}
+      {/* ── Embedding Loading Overlay ── */}
       {embeddingLoading && (
-        <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
-          <div className="w-[85%] max-w-sm bg-white/95 rounded-3xl p-6 shadow-2xl border border-border">
+        <div className="absolute inset-0 z-50 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
+          <div className="w-[82%] max-w-xs bg-white/96 rounded-3xl p-6 shadow-2xl border border-border/50">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
                 <span className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-bold text-foreground">Loading Face Data</p>
-                <p className="text-xs text-muted">{embeddingStatus}</p>
+                <p className="text-xs text-muted truncate">{embeddingStatus}</p>
               </div>
             </div>
-            <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: '100%' }} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Model download — small non-blocking pill at top */}
-      {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
-        <div className="absolute top-[10rem] inset-x-0 flex justify-center z-20 pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl px-4 py-2.5 shadow-sm w-[70%] max-w-xs">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="font-semibold text-foreground">🧠 AI Model</span>
-              <span className="text-muted font-bold">{Math.round(modelDownloadPct)}%</span>
-            </div>
             <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-300"
-                style={{ width: `${modelDownloadPct}%` }}
-              />
+              <div className="h-full bg-gradient-to-r from-primary to-accent rounded-full animate-pulse w-full" />
             </div>
           </div>
         </div>
       )}
 
-      {/* Premium Sci-Fi HUD Mask */}
-      <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center" style={{ paddingTop: '5%' }}>
-        {/* Darker translucent mask for premium sci-fi contrast */}
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <mask id="faceMask">
-              <rect width="100" height="100" fill="white"/>
-              <ellipse cx="50" cy="45" rx="28" ry="36" fill="black"/>
-            </mask>
-          </defs>
-          <rect width="100" height="100" fill="rgba(0,0,0,0.70)" mask="url(#faceMask)"/>
-        </svg>
-        
-        {/* The Advanced HUD Reticle */}
-        <div className={`w-[56%] sm:w-[45%] lg:w-[35%] aspect-[28/36] relative transition-all duration-500 ease-out ${
-          phase === 'scanning'  ? 'scale-105' :
-          faceDetected          ? 'scale-[1.02]' :
-                                  'scale-100'
-        }`}>
-          
-          {/* Futuristic Corner Brackets */}
-          <div className={`absolute -top-3 -left-3 w-10 h-10 sm:w-12 sm:h-12 border-t-[3px] border-l-[3px] rounded-tl-3xl transition-colors duration-300 ${
-            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
-            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
-          }`} />
-          <div className={`absolute -top-3 -right-3 w-10 h-10 sm:w-12 sm:h-12 border-t-[3px] border-r-[3px] rounded-tr-3xl transition-colors duration-300 ${
-            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
-            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
-          }`} />
-          <div className={`absolute -bottom-3 -left-3 w-10 h-10 sm:w-12 sm:h-12 border-b-[3px] border-l-[3px] rounded-bl-3xl transition-colors duration-300 ${
-            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
-            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
-          }`} />
-          <div className={`absolute -bottom-3 -right-3 w-10 h-10 sm:w-12 sm:h-12 border-b-[3px] border-r-[3px] rounded-br-3xl transition-colors duration-300 ${
-            phase === 'scanning' ? 'border-primary shadow-[0_0_20px_rgba(124,58,237,0.6)]' :
-            faceDetected ? 'border-success shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'border-white/40'
-          }`} />
+      {/* ── Model download progress pill ── */}
+      {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
+        <div className="absolute top-28 inset-x-0 flex justify-center z-30 pointer-events-none">
+          <div className="glass-dark px-4 py-2.5 rounded-2xl w-[68%] max-w-xs">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="font-bold text-white/80">Offline Model</span>
+              <span className="text-white/50 font-bold">{Math.round(modelDownloadPct)}%</span>
+            </div>
+            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-300"
+                   style={{ width: `${modelDownloadPct}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* Crosshair accents */}
-          <div className={`absolute top-1/2 -left-5 sm:-left-6 w-3 sm:w-4 h-[2px] -translate-y-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
-          <div className={`absolute top-1/2 -right-5 sm:-right-6 w-3 sm:w-4 h-[2px] -translate-y-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
-          <div className={`absolute -top-5 sm:-top-6 left-1/2 w-[2px] h-3 sm:h-4 -translate-x-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
-          <div className={`absolute -bottom-5 sm:-bottom-6 left-1/2 w-[2px] h-3 sm:h-4 -translate-x-1/2 transition-colors duration-300 ${faceDetected ? 'bg-success/80' : 'bg-white/30'}`} />
+      {/* ── Face Frame ── */}
+      <div className="absolute inset-0 z-20 pointer-events-none flex justify-center"
+           style={{ paddingTop: '16%', paddingBottom: '30%' }}>
+        <div
+          style={{ width: '62%', maxWidth: '230px', aspectRatio: '3/4' }}
+          className={`relative transition-all duration-500 ease-out ${
+            phase === 'scanning' ? 'scale-[1.04]' : faceDetected ? 'scale-[1.01]' : 'scale-100'
+          } ${!faceDetected && phase === 'ready' ? 'scan-frame-idle' : ''}`}
+        >
+          {/* Top-left corner */}
+          <div className="absolute top-0 left-0">
+            <div className={`absolute top-0 left-0 h-[3px] w-8 rounded-r-full transition-all duration-300 ${cornerColor}`} />
+            <div className={`absolute top-0 left-0 w-[3px] h-8 rounded-b-full transition-all duration-300 ${cornerColor}`} />
+          </div>
+          {/* Top-right corner */}
+          <div className="absolute top-0 right-0">
+            <div className={`absolute top-0 right-0 h-[3px] w-8 rounded-l-full transition-all duration-300 ${cornerColor}`} />
+            <div className={`absolute top-0 right-0 w-[3px] h-8 rounded-b-full transition-all duration-300 ${cornerColor}`} />
+          </div>
+          {/* Bottom-left corner */}
+          <div className="absolute bottom-0 left-0">
+            <div className={`absolute bottom-0 left-0 h-[3px] w-8 rounded-r-full transition-all duration-300 ${cornerColor}`} />
+            <div className={`absolute bottom-0 left-0 w-[3px] h-8 rounded-t-full transition-all duration-300 ${cornerColor}`} />
+          </div>
+          {/* Bottom-right corner */}
+          <div className="absolute bottom-0 right-0">
+            <div className={`absolute bottom-0 right-0 h-[3px] w-8 rounded-l-full transition-all duration-300 ${cornerColor}`} />
+            <div className={`absolute bottom-0 right-0 w-[3px] h-8 rounded-t-full transition-all duration-300 ${cornerColor}`} />
+          </div>
 
-          {/* Inner Oval Guide Ring */}
-          <div className={`absolute inset-0 rounded-[100%] border transition-all duration-300 ${
-            phase === 'scanning' ? 'border-primary/50 bg-primary/10 shadow-[inset_0_0_50px_rgba(124,58,237,0.2)]' :
-            faceDetected ? 'border-success/50 bg-success/10' : 'border-white/20 border-dashed'
-          }`} />
+          {/* Glow ring when face detected or scanning */}
+          {(faceDetected || phase === 'scanning') && (
+            <div className={`absolute inset-0 rounded-xl transition-all duration-500 ${
+              phase === 'scanning'
+                ? 'shadow-[0_0_0_1.5px_rgba(124,58,237,0.6),0_0_50px_rgba(124,58,237,0.2),inset_0_0_30px_rgba(124,58,237,0.05)]'
+                : 'shadow-[0_0_0_1.5px_rgba(52,211,153,0.5),0_0_35px_rgba(52,211,153,0.12)]'
+            }`} />
+          )}
 
-          {/* High-tech scanning sweep laser */}
+          {/* Sweep line when scanning */}
           {phase === 'scanning' && (
-            <div className="absolute inset-x-0 top-0 bottom-0 overflow-hidden rounded-[100%]">
-               <div className="absolute left-0 right-0 h-[30%] bg-gradient-to-b from-primary/0 via-primary/20 to-primary border-b-[3px] border-primary shadow-[0_10px_40px_rgba(124,58,237,0.8)]" 
-                    style={{ animation: 'slide-up-fade 1.2s infinite alternate ease-in-out' }} />
+            <div className="absolute inset-0 overflow-hidden rounded-xl">
+              <div
+                className="absolute inset-x-0 h-[2px]"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(168,85,247,0.6) 15%, rgba(196,130,252,1) 50%, rgba(168,85,247,0.6) 85%, transparent 100%)',
+                  boxShadow: '0 0 18px rgba(168,85,247,0.9), 0 0 36px rgba(124,58,237,0.4)',
+                  animation: 'scan-sweep 1.5s ease-in-out infinite',
+                }}
+              />
             </div>
           )}
 
-          {/* Floating Data Points inside reticle */}
-          <div className="absolute left-6 top-8 flex flex-col gap-1 text-[8px] sm:text-[10px] font-mono tracking-widest text-white/50">
-            <span className={`transition-colors ${faceDetected ? 'text-success' : ''}`}>[ TRK ]</span>
-            <span>{isOnline ? 'ONL' : 'OFL'}</span>
-          </div>
-          
-          <div className="absolute right-6 bottom-8 flex flex-col gap-1 text-[8px] sm:text-[10px] font-mono tracking-widest text-white/50 text-right">
-            <span>SYS_V2</span>
-            <span className={`transition-colors ${phase === 'scanning' ? 'text-primary' : ''}`}>[ BIO ]</span>
+          {/* Mid-frame guide dots */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none">
+            <div className={`w-1 h-1 rounded-full transition-colors duration-300 ${faceDetected ? 'bg-emerald-400/70' : 'bg-white/20'}`} />
+            <div className={`w-1 h-1 rounded-full transition-colors duration-300 ${faceDetected ? 'bg-emerald-400/70' : 'bg-white/20'}`} />
           </div>
 
-          {/* Minimalist HUD Label */}
-          <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
-             <div className={`inline-block px-5 py-2 rounded-full backdrop-blur-md border text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-300 ${
-               phase === 'scanning' ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_20px_rgba(124,58,237,0.3)]' :
-               faceDetected         ? 'bg-success/20 border-success/50 text-success shadow-[0_0_20px_rgba(16,185,129,0.3)]' :
-                                      'bg-black/60 border-white/20 text-white shadow-xl'
-             }`}>
-               {phase === 'scanning' ? 'MATCHING' :
-                faceDetected         ? 'ACQUIRED' :
-                                       'ALIGN FACE'}
-             </div>
+          {/* Status badge below frame */}
+          <div className="absolute -bottom-11 inset-x-0 flex justify-center">
+            <span className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.14em] transition-all duration-300 backdrop-blur-md border ${
+              phase === 'scanning'
+                ? 'bg-primary/25 border-primary/50 text-violet-200'
+                : faceDetected
+                ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                : 'bg-black/45 border-white/12 text-white/55'
+            }`}>
+              {phase === 'scanning' ? 'Matching…' : faceDetected ? 'Face Acquired' : 'Align Face'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Top HUD */}
-      <div className="absolute top-0 inset-x-0 p-6 z-20 flex justify-between items-start pointer-events-none">
+      {/* ── Top bar ── */}
+      <div className="absolute top-0 inset-x-0 px-5 pt-5 z-30 flex items-center justify-between pointer-events-none">
         <button
           onClick={() => { stop(); setPhase('select_service'); }}
-          className="bg-white/80 backdrop-blur-md border border-border w-12 h-12 rounded-full flex items-center justify-center text-foreground hover:bg-white transition-colors pointer-events-auto shadow-sm"
+          className="pointer-events-auto glass-dark w-11 h-11 rounded-2xl flex items-center justify-center text-white/80 hover:text-white transition-colors"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        
-        <div className="bg-white/80 backdrop-blur-md border border-border px-5 py-2.5 rounded-full text-right pointer-events-auto shadow-sm">
-          <p className="text-foreground font-bold text-sm tracking-wide">{selectedService?.name || selectedService?.service_group}</p>
+
+        <div className="glass-dark px-4 py-2.5 rounded-2xl pointer-events-auto text-right">
+          <p className="text-white text-sm font-bold leading-tight">
+            {selectedService?.name || selectedService?.service_group}
+          </p>
           <div className="flex items-center justify-end gap-1.5 mt-0.5">
-            <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-success' : 'bg-warning'} ${isOnline ? 'animate-pulse' : ''}`} />
-            <p className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-success' : 'text-warning'}`}>{isOnline ? 'Online' : 'Offline'}</p>
+            <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className={`text-[10px] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Mode Indicator Pill */}
-      <div className="absolute top-24 inset-x-0 flex justify-center z-20 pointer-events-none">
-        <div className="bg-white/90 backdrop-blur-md border border-border px-4 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
-          <span className={`w-2 h-2 rounded-full ${mode === 'sign_in' ? 'bg-primary' : 'bg-info'}`} />
-          <span className="text-foreground text-xs font-bold uppercase tracking-wider">{mode === 'sign_in' ? 'Sign In Mode' : 'Sign Out Mode'}</span>
+      {/* ── Mode toggle ── */}
+      <div className="absolute top-[4.75rem] inset-x-0 flex justify-center z-30 pointer-events-none">
+        <div className="glass-dark rounded-2xl p-1 flex pointer-events-auto">
+          <button
+            onClick={() => setMode('sign_in')}
+            className={`px-5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+              mode === 'sign_in'
+                ? 'bg-primary text-white shadow-lg shadow-primary/40'
+                : 'text-white/45 hover:text-white/80'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            onClick={() => setMode('sign_out')}
+            className={`px-5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+              mode === 'sign_out'
+                ? 'bg-info text-white shadow-lg shadow-blue-500/40'
+                : 'text-white/45 hover:text-white/80'
+            }`}
+          >
+            Sign Out
+          </button>
         </div>
       </div>
 
-      {/* Camera Picker — only show when multiple cameras detected */}
+      {/* ── Camera picker ── */}
       {availableCameras.length > 1 && (
-        <div className="absolute top-[7.5rem] inset-x-0 flex justify-center z-20">
-          <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl shadow-lg overflow-hidden pointer-events-auto">
+        <div className="absolute top-[8.75rem] inset-x-0 flex justify-center z-30">
+          <div className="glass-dark rounded-2xl overflow-hidden pointer-events-auto">
             <div className="flex items-center gap-1 p-1">
               {availableCameras.map((cam, i) => (
                 <button
                   key={cam.deviceId}
                   onClick={() => void switchCamera(cam.deviceId)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold
-                             transition-all duration-200 whitespace-nowrap
-                             ${activeCameraId === cam.deviceId
-                               ? 'bg-primary text-white shadow-sm'
-                               : 'text-muted hover:text-foreground hover:bg-surface-2'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all duration-200 whitespace-nowrap ${
+                    activeCameraId === cam.deviceId
+                      ? 'bg-primary text-white'
+                      : 'text-white/45 hover:text-white/80'
+                  }`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -882,102 +908,98 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Liveness Challenge Overlay */}
-      {phase === 'liveness' && livenessChallenge && (
-        <div className="absolute inset-x-0 bottom-32 flex flex-col items-center justify-end z-20 pointer-events-none animate-slide-up-fade">
-          <div className="mx-6 w-full max-w-sm rounded-[2rem] overflow-hidden bg-white/90 backdrop-blur-xl border-2 border-yellow-400/30 shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
-            <div className="h-1.5 bg-border w-full relative">
-              <div
-                className="absolute inset-y-0 left-0 transition-all duration-100 ease-linear rounded-r-full"
-                style={{
-                  width: `${livenessProgress}%`,
-                  background: livenessProgress > 30 ? '#FACC15' : '#EF4444',
-                  boxShadow: `0 0 10px ${livenessProgress > 30 ? 'rgba(250,204,21,0.5)' : 'rgba(239,68,68,0.5)'}`
-                }}
-              />
-            </div>
-            <div className="px-6 py-6 text-center flex flex-col items-center">
-              <div className="w-16 h-16 bg-yellow-400/20 rounded-full flex items-center justify-center mb-3 text-yellow-600 border border-yellow-400/30">
-                <span className="text-3xl">
-                  {livenessChallenge.label.includes('Blink') ? '👁️' :
-                   livenessChallenge.label.includes('Smile') ? '😊' :
-                   livenessChallenge.label.includes('Left')  ? '↩️' :
-                   livenessChallenge.label.includes('Right') ? '↪️' : '↕️'}
-                </span>
-              </div>
-              <p className="text-foreground font-black text-2xl leading-tight mb-1">{livenessChallenge.label}</p>
-              <p className="text-muted text-sm font-medium">{livenessChallenge.instruction}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Result Screen */}
+      {/* ── Result overlay ── */}
       {phase === 'result' && result && (
         <div
-          className={`absolute inset-0 z-30 flex flex-col items-center justify-center animate-fade-in backdrop-blur-xl
-            ${result.type === 'success' ? 'bg-success-muted/90' : result.type === 'already_marked' ? 'bg-warning-muted/90' : 'bg-danger-muted/90'}`}
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center animate-fade-in bg-black/80 backdrop-blur-sm"
+          onClick={resetScan}
         >
-          <div className="absolute top-0 inset-x-0 h-2 bg-border/50">
-            <div className={`h-full rounded-r-full ${
-              result.type === 'success' ? 'bg-success result-bar-success' : 
-              result.type === 'already_marked' ? 'bg-warning result-bar-error' : 
-              'bg-danger result-bar-error'}`} />
-          </div>
-
-          <div className="flex flex-col items-center text-center p-8 max-w-sm w-full">
-            <div className={`w-32 h-32 rounded-full flex items-center justify-center mb-8 shadow-xl border-4 animate-pulse-ring
-              ${result.type === 'success' ? 'bg-white border-success text-success' : 
-                result.type === 'already_marked' ? 'bg-white border-warning text-warning' : 
-                'bg-white border-danger text-danger'}`}>
-              <span className="text-6xl drop-shadow-sm font-bold">
-                {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '!' : '✕'}
-              </span>
+          <div className="animate-scale-in w-[80%] max-w-xs rounded-[2rem] overflow-hidden shadow-2xl">
+            {/* Drain bar */}
+            <div className={`h-1 ${
+              result.type === 'success' ? 'bg-emerald-400/40' :
+              result.type === 'already_marked' ? 'bg-amber-400/40' : 'bg-red-400/40'
+            }`}>
+              <div className={`h-full ${
+                result.type === 'success'
+                  ? 'bg-emerald-300 result-bar-success'
+                  : 'bg-white/70 result-bar-error'
+              }`} />
             </div>
-            
-            <h2 className={`text-3xl font-black mb-3 drop-shadow-sm leading-tight
-              ${result.type === 'success' ? 'text-success' : 
-                result.type === 'already_marked' ? 'text-warning' : 
-                'text-danger'}`}>
-              {result.type === 'success'
-                ? result.name
+
+            {/* Content */}
+            <div className={`px-7 py-8 text-center ${
+              result.type === 'success'
+                ? 'bg-gradient-to-b from-emerald-600 to-emerald-700'
                 : result.type === 'already_marked'
-                ? 'Already Marked'
-                : 'Not Accepted'}
-            </h2>
-            <p className="text-foreground/80 text-base font-bold px-4">
-              {result.message}
-            </p>
+                ? 'bg-gradient-to-b from-amber-500 to-amber-600'
+                : 'bg-gradient-to-b from-red-600 to-red-700'
+            }`}>
+              <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-5">
+                <span className="text-4xl text-white font-black">
+                  {result.type === 'success' ? '✓' : result.type === 'already_marked' ? '↩' : '✕'}
+                </span>
+              </div>
+              <h2 className="text-white text-2xl font-black leading-tight mb-2">
+                {result.type === 'success'
+                  ? result.name
+                  : result.type === 'already_marked'
+                  ? 'Already Marked'
+                  : 'Not Accepted'}
+              </h2>
+              <p className="text-white/70 text-sm font-medium leading-relaxed">{result.message}</p>
+            </div>
           </div>
-          <button onClick={resetScan} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+          <p className="text-white/30 text-[11px] font-bold uppercase tracking-widest mt-5">Tap to continue</p>
         </div>
       )}
 
-      {/* Bottom Status HUD */}
-      {phase === 'ready' && (
-        <div className="absolute bottom-10 inset-x-6 z-20 flex flex-col gap-3">
-          {!isOnline && !offlineReady && (
-            <div className="bg-warning-muted/90 backdrop-blur-md border border-warning/30 rounded-2xl p-4 text-center shadow-sm">
-              <p className="text-warning font-bold text-sm">Offline Model Loading...</p>
-              <p className="text-warning/80 text-xs mt-1">Please wait or connect to Wi-Fi</p>
+      {/* ── Bottom dock ── */}
+      <div className="absolute bottom-0 inset-x-0 z-20 px-5 pb-7">
+        <div className="glass-dark rounded-3xl px-6 py-4">
+          {phase === 'scanning' ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-bold text-sm">Processing face…</p>
+                <p className="text-white/40 text-xs mt-0.5">
+                  {embeddings.length > 0 ? `Checking ${embeddings.length} students` : 'Matching…'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-2 h-2 rounded-full bg-primary/80 animate-bounce"
+                    style={{ animationDelay: `${i * 0.13}s`, animationDuration: '0.75s' }}
+                  />
+                ))}
+              </div>
             </div>
-          )}
-          {!canScan && (isOnline || offlineReady) && (
-            <div className="bg-white/90 backdrop-blur-md border border-border rounded-2xl p-4 text-center shadow-sm">
-              <p className="text-muted font-semibold text-sm animate-pulse">Waiting for GPS Fix...</p>
+          ) : !isOnline && !offlineReady ? (
+            <div className="text-center">
+              <p className="text-amber-300 font-bold text-sm">Offline model loading…</p>
+              <p className="text-white/40 text-xs mt-0.5">Reconnect to Wi-Fi or wait</p>
             </div>
-          )}
-          {canScan && (
-            <div className="bg-white/95 backdrop-blur-xl border border-border rounded-[2rem] p-5 text-center shadow-lg">
-              <p className="text-foreground font-black text-base tracking-wide mb-1 flex items-center justify-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                {mode === 'sign_in' ? 'Ready to Sign In' : 'Ready to Sign Out'}
-              </p>
-              <p className="text-muted text-xs font-medium">Position face in the oval to begin</p>
+          ) : !canScan ? (
+            <div className="text-center">
+              <p className="text-white/55 font-semibold text-sm animate-pulse">Waiting for GPS fix…</p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-bold text-sm">
+                  {mode === 'sign_in' ? 'Ready to Sign In' : 'Ready to Sign Out'}
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">Position face inside the frame</p>
+              </div>
+              <div className="relative w-3 h-3">
+                <div className="absolute inset-0 w-3 h-3 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                <div className="relative w-3 h-3 rounded-full bg-emerald-400" />
+              </div>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
