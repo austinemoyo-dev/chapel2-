@@ -411,8 +411,12 @@ class _Match1toNCache:
         """
         threshold = float(getattr(settings, 'INSIGHTFACE_MATCH_THRESHOLD', 0.40))
 
-        matrix_bytes = pool.get('matrix_bytes', b'')
-        if not matrix_bytes:
+        # Support both new (bytes) and legacy (list-of-lists) pool formats so
+        # cached pools built before the bytes optimisation still work.
+        matrix_bytes  = pool.get('matrix_bytes', b'')
+        legacy_matrix = pool.get('matrix', [])
+
+        if not matrix_bytes and not legacy_matrix:
             return {
                 'matched': False, 'student_id': None,
                 'student_name': None, 'confidence': 0.0,
@@ -429,9 +433,14 @@ class _Match1toNCache:
             }
         probe = probe / probe_norm
 
-        # frombuffer is zero-copy — no Python list→ndarray conversion overhead
-        shape        = pool['matrix_shape']
-        mat          = np.frombuffer(matrix_bytes, dtype=np.float64).reshape(shape)
+        if matrix_bytes:
+            # Fast path: zero-copy frombuffer on the pre-stored bytes
+            shape = pool['matrix_shape']
+            mat   = np.frombuffer(matrix_bytes, dtype=np.float64).reshape(shape)
+        else:
+            # Legacy path: old cache entry stored matrix as list-of-lists
+            mat = np.array(legacy_matrix, dtype=np.float64)
+
         similarities = mat @ probe                             # BLAS (N,)
         best_idx     = int(np.argmax(similarities))
         best_sim     = float(similarities[best_idx])

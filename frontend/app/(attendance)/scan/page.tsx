@@ -13,7 +13,7 @@ import { cacheEmbeddings, getCachedEmbeddings, getQueueCount, addToQueue } from 
 import { syncOfflineRecords, registerBackgroundSync } from '@/lib/offline/syncManager';
 import { downloadAndCacheModel, isModelReady, extractEmbedding } from '@/lib/offline/faceModel';
 import { alignFace, imageDataToFloat32 } from '@/lib/offline/facePreprocess';
-import { buildNormalisedPool, matchNormalised, type NormalisedPool } from '@/lib/offline/offlineMatcher';
+import { buildNormalisedPool, matchNormalised, matchOffline, type NormalisedPool } from '@/lib/offline/offlineMatcher';
 import { LIVENESS_CHALLENGES } from '@/lib/utils/constants';
 import { ApiError } from '@/lib/api/client';
 import Button from '@/components/ui/Button';
@@ -406,18 +406,24 @@ export default function ScanPage() {
       try {
         const embedding = await extractCurrentFaceEmbedding();
 
-        // 1-to-N cosine match against the pre-normalised in-memory pool.
-        // Avoids reading from IndexedDB on every scan.
-        const pool = normPoolRef.current;
-        if (pool.length === 0) {
-          setResult({ type: 'failed', name: '', message: 'No cached student embeddings. Select service again while online.' });
-          setScanning(false);
-          setPhase('result');
-          scheduleAutoReset('failed');
-          return;
+        // Use pre-normalised in-memory pool when ready (fast path).
+        // Fall back to IndexedDB read if the pool hasn't been built yet
+        // (e.g. first scan fires before the useEffect has run).
+        const normPool = normPoolRef.current;
+        let match;
+        if (normPool.length > 0) {
+          match = matchNormalised(embedding, normPool);
+        } else {
+          const cached = await getCachedEmbeddings(selectedService.id);
+          if (!cached || !cached.embeddings || cached.embeddings.length === 0) {
+            setResult({ type: 'failed', name: '', message: 'No cached student embeddings. Select service again while online.' });
+            setScanning(false);
+            setPhase('result');
+            scheduleAutoReset('failed');
+            return;
+          }
+          match = matchOffline(embedding, cached);
         }
-
-        const match = matchNormalised(embedding, pool);
         if (!match.matched || !match.student_id) {
           setResult({ type: 'failed', name: '', message: 'Face not recognised offline. Please try again.' });
           setScanning(false);
