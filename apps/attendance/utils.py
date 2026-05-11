@@ -254,9 +254,12 @@ def calculate_attendance_percentage(student, semester_id):
     # Count total required services for this student
     # Regular services: only count services matching the student's group
     # Special services: count all (service_group='all')
+    # Only include services whose date has already passed (not future/upcoming)
+    from django.utils import timezone
     total_services = Service.objects.filter(
         semester_id=semester_id,
         is_cancelled=False,
+        scheduled_date__lte=timezone.now().date(),
     ).filter(
         Q(service_group=student.service_group) | Q(service_group='all')
     ).count()

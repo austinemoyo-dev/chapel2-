@@ -1022,6 +1022,9 @@ class StudentAttendancePortalView(APIView):
         }
 
         # Build service-by-service breakdown
+        from django.utils import timezone as tz
+        today = tz.now().date()
+
         services_breakdown = []
         for svc in applicable_services:
             record = records.get(str(svc.id))
@@ -1043,6 +1046,7 @@ class StudentAttendancePortalView(APIView):
                     'status': svc_status,
                 })
             else:
+                svc_status = 'upcoming' if svc.scheduled_date > today else 'missed'
                 services_breakdown.append({
                     'service_name': svc.name or f'{svc.service_type} {svc.service_group}',
                     'service_type': svc.service_type,
@@ -1050,7 +1054,7 @@ class StudentAttendancePortalView(APIView):
                     'signed_in_at': None,
                     'signed_out_at': None,
                     'is_valid': False,
-                    'status': 'missed',
+                    'status': svc_status,
                 })
 
         return Response({

@@ -66,6 +66,11 @@ function StatusIcon({ status }: { status: string }) {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
+  if (status === 'upcoming') return (
+    <svg className="w-5 h-5 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
   if (status === 'excused') return (
     <svg className="w-5 h-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
@@ -82,10 +87,11 @@ function StatusIcon({ status }: { status: string }) {
 /* ─── Status badge variant mapping ─── */
 function statusBadge(status: string) {
   const map: Record<string, { variant: 'success' | 'danger' | 'warning' | 'info'; label: string }> = {
-    valid:   { variant: 'success', label: 'Present' },
-    missed:  { variant: 'danger',  label: 'Missed' },
-    excused: { variant: 'warning', label: 'Excused' },
-    invalid: { variant: 'info',    label: 'Incomplete' },
+    valid:    { variant: 'success', label: 'Present' },
+    missed:   { variant: 'danger',  label: 'Missed' },
+    excused:  { variant: 'warning', label: 'Excused' },
+    invalid:  { variant: 'info',    label: 'Incomplete' },
+    upcoming: { variant: 'info',    label: 'Upcoming' },
   };
   return map[status] || { variant: 'info' as const, label: status };
 }
