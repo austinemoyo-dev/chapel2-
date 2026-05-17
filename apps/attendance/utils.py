@@ -303,12 +303,18 @@ def get_service_embeddings(service_id):
     """
     Get all face embeddings for the service's student pool.
     Used by protocol member devices for offline face matching.
-    
+
     Returns:
         list: [{'student_id': uuid, 'student_name': str, 'embeddings': [...]}]
     """
+    from django.core.cache import cache
     from apps.services.models import Service
     from apps.students.models import FaceSample
+
+    cache_key = f'embeddings_dl_{service_id}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     try:
         service = Service.objects.get(id=service_id)
@@ -330,7 +336,7 @@ def get_service_embeddings(service_id):
             student__service_group=service.service_group,
         ).select_related('student')
 
-    # Group embeddings by student
+    # Group embeddings by student — round floats to 6 dp to reduce response size
     student_embeddings = {}
     for sample in samples:
         sid = str(sample.student.id)
@@ -340,6 +346,9 @@ def get_service_embeddings(service_id):
                 'student_name': sample.student.full_name,
                 'embeddings': [],
             }
-        student_embeddings[sid]['embeddings'].append(sample.embedding_vector)
+        rounded = [round(v, 6) for v in sample.embedding_vector]
+        student_embeddings[sid]['embeddings'].append(rounded)
 
-    return list(student_embeddings.values())
+    result = list(student_embeddings.values())
+    cache.set(cache_key, result, timeout=21600)  # 6 hours
+    return result

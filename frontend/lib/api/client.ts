@@ -85,7 +85,8 @@ async function refreshAccessToken(): Promise<string | null> {
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
-  retry = true
+  retry = true,
+  timeoutMs?: number
 ): Promise<T> {
   let token = getAccessToken();
 
@@ -105,20 +106,38 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    cache: 'no-store',
-    ...options,
-    headers: {
-      ...headers,
-      ...(options.headers as Record<string, string>),
-    },
-  });
+  let controller: AbortController | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs) {
+    controller = new AbortController();
+    timeoutId = setTimeout(() => controller!.abort(), timeoutMs);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${endpoint}`, {
+      cache: 'no-store',
+      ...options,
+      signal: controller?.signal,
+      headers: {
+        ...headers,
+        ...(options.headers as Record<string, string>),
+      },
+    });
+  } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiError('Request timed out', 408);
+    }
+    throw err;
+  }
+  if (timeoutId) clearTimeout(timeoutId);
 
   // Handle 401 — try refresh once
   if (response.status === 401 && retry) {
     const newToken = await refreshAccessToken();
     if (newToken) {
-      return request<T>(endpoint, options, false);
+      return request<T>(endpoint, options, false, timeoutMs);
     }
     // Force redirect to login
     if (typeof window !== 'undefined') {
@@ -181,7 +200,7 @@ async function request<T>(
 // ============================================================================
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
+  get: <T>(endpoint: string, timeoutMs?: number) => request<T>(endpoint, { method: 'GET' }, true, timeoutMs),
 
   post: <T>(endpoint: string, body?: unknown) =>
     request<T>(endpoint, {
