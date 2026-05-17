@@ -222,7 +222,7 @@ def match_face_1_to_n(face_embedding, service_id, service=None):
                 'student_name': None, 'confidence': 0.0,
                 'message': 'No face embeddings available for this service pool.',
             }
-        cache.set(cache_key, pool, timeout=1800)
+        cache.set(cache_key, pool, timeout=21600)
         logger.debug('Built embedding cache for service %s (%d vectors)', service_id, len(pool['student_ids']))
 
     return match_1_to_n_cached.match(face_embedding, pool)
