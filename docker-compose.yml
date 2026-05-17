@@ -8,13 +8,13 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_DB:       ${DB_NAME}
-      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -44,14 +44,14 @@ services:
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
-      - insightface_models:/root/.insightface   # persists ~500 MB model weights
+      - insightface_models:/root/.insightface # persists ~500 MB model weights
       - chapel_logs:/var/log/chapel
     depends_on:
       db:
         condition: service_healthy
     command: >
       sh -c "python manage.py migrate --noinput &&
-             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 chapel.wsgi:application"
+             gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 120 chapel.wsgi:application"
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -76,5 +76,5 @@ volumes:
   postgres_data:
   media_data:
   static_data:
-  insightface_models:   # persists buffalo_l ONNX weights across container rebuilds
+  insightface_models: # persists buffalo_l ONNX weights across container rebuilds
   chapel_logs:
