@@ -9,6 +9,7 @@ from .views import (
     ServiceListCreateView,
     ServiceDetailView,
     ServiceCancelView,
+    ServicePrepareView,
     GeoFenceView,
 )
 
@@ -22,4 +23,5 @@ urlpatterns = [
     path('', ServiceListCreateView.as_view(), name='services-list'),
     path('<uuid:id>/', ServiceDetailView.as_view(), name='services-detail'),
     path('<uuid:id>/cancel/', ServiceCancelView.as_view(), name='services-cancel'),
+    path('<uuid:id>/prepare/', ServicePrepareView.as_view(), name='services-prepare'),
 ]

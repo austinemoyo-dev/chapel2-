@@ -88,6 +88,7 @@ export default function ServicesPage() {
   const { hasRole } = useAuth();
   const { addToast } = useToast();
   const isSuperadmin = hasRole(ROLES.SUPERADMIN);
+  const isAdmin = hasRole(ROLES.ADMIN);
 
   // Data
   const [services, setServices] = useState<Service[]>([]);
@@ -124,6 +125,7 @@ export default function ServicesPage() {
   const [bulkName, setBulkName] = useState('');
   const [bulkCreating, setBulkCreating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, failed: 0 });
+  const [preparingId, setPreparingId] = useState<string | null>(null);
 
   // ============================================================================
   // Data loading
@@ -296,6 +298,18 @@ export default function ServicesPage() {
       addToast(msg, 'error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePrepare(service: Service) {
+    setPreparingId(service.id);
+    try {
+      const result = await serviceService.prepareService(service.id);
+      addToast(`Ready — ${result.student_count} students loaded into cache`, 'success');
+    } catch {
+      addToast('Failed to prepare service', 'error');
+    } finally {
+      setPreparingId(null);
     }
   }
 
@@ -570,10 +584,15 @@ export default function ServicesPage() {
                             )}
                           </p>
                         </div>
-                        {isSuperadmin && (
+                        {(isSuperadmin || isAdmin) && (
                           <div className="flex gap-2 shrink-0">
-                            <Button variant="secondary" size="sm" onClick={() => openEdit(service)}>Edit</Button>
                             {!service.is_cancelled && (
+                              <Button variant="secondary" size="sm" onClick={() => handlePrepare(service)} disabled={preparingId === service.id}>
+                                {preparingId === service.id ? 'Preparing...' : '⚡ Prepare'}
+                              </Button>
+                            )}
+                            {isSuperadmin && <Button variant="secondary" size="sm" onClick={() => openEdit(service)}>Edit</Button>}
+                            {isSuperadmin && !service.is_cancelled && (
                               <Button variant="ghost" size="sm" onClick={() => setCancelTarget(service)}>Cancel</Button>
                             )}
                           </div>

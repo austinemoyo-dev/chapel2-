@@ -9,6 +9,7 @@ Core attendance business logic:
 5. Attendance percentage calculation (live query, no caching)
 """
 import math
+import time
 import logging
 from django.db.models import Q
 
@@ -299,29 +300,15 @@ def calculate_attendance_percentage(student, semester_id):
     }
 
 
-def get_service_embeddings(service_id):
-    """
-    Get all face embeddings for the service's student pool.
-    Used by protocol member devices for offline face matching.
-
-    Returns:
-        list: [{'student_id': uuid, 'student_name': str, 'embeddings': [...]}]
-    """
-    from django.core.cache import cache
+def _build_embeddings(service_id):
     from apps.services.models import Service
     from apps.students.models import FaceSample
-
-    cache_key = f'embeddings_dl_{service_id}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
 
     try:
         service = Service.objects.get(id=service_id)
     except Service.DoesNotExist:
         return []
 
-    # Determine pool
     if service.service_group == 'all':
         samples = FaceSample.objects.filter(
             semester=service.semester,
@@ -336,7 +323,6 @@ def get_service_embeddings(service_id):
             student__service_group=service.service_group,
         ).select_related('student')
 
-    # Group embeddings by student — round floats to 6 dp to reduce response size
     student_embeddings = {}
     for sample in samples:
         sid = str(sample.student.id)
@@ -349,6 +335,45 @@ def get_service_embeddings(service_id):
         rounded = [round(v, 6) for v in sample.embedding_vector]
         student_embeddings[sid]['embeddings'].append(rounded)
 
-    result = list(student_embeddings.values())
-    cache.set(cache_key, result, timeout=21600)  # 6 hours
-    return result
+    return list(student_embeddings.values())
+
+
+def get_service_embeddings(service_id):
+    """
+    Get all face embeddings for the service's student pool.
+    Used by protocol member devices for offline face matching.
+
+    Uses a cache lock so that when multiple devices request simultaneously,
+    only one builds the data — the rest wait and get the cached result.
+
+    Returns:
+        list: [{'student_id': uuid, 'student_name': str, 'embeddings': [...]}]
+    """
+    from django.core.cache import cache
+
+    cache_key = f'embeddings_dl_{service_id}'
+    lock_key = f'embeddings_dl_lock_{service_id}'
+
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # cache.add() is atomic — only succeeds if key doesn't already exist
+    lock_acquired = cache.add(lock_key, 1, timeout=60)
+
+    if lock_acquired:
+        try:
+            result = _build_embeddings(service_id)
+            cache.set(cache_key, result, timeout=21600)
+            return result
+        finally:
+            cache.delete(lock_key)
+    else:
+        # Another worker is building — wait up to 55s for it to finish
+        for _ in range(55):
+            time.sleep(1)
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
+        # Lock expired but cache still empty — build it ourselves as fallback
+        return _build_embeddings(service_id)

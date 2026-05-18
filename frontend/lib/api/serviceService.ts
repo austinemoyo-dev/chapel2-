@@ -138,6 +138,10 @@ export const serviceService = {
   cancelService: (id: string, reason?: string) =>
     api.delete<{ message: string }>(`/api/services/${id}/cancel/`, { reason }),
 
+  /** POST /api/services/{id}/prepare/ — Pre-warm face embeddings cache */
+  prepareService: (id: string) =>
+    api.post<{ message: string; student_count: number }>(`/api/services/${id}/prepare/`),
+
   // Geo-fence
   /** GET /api/geo-fence/ — Get current geo-fence config */
   getGeoFence: () => api.get<GeoFenceConfig>('/api/geo-fence/'),

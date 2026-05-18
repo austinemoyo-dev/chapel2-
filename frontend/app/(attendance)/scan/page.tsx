@@ -746,17 +746,19 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* ── Model download progress pill ── */}
+      {/* ── Model download warning banner ── */}
       {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
-        <div className="absolute top-28 inset-x-0 flex justify-center z-30 pointer-events-none">
-          <div className="glass-dark px-4 py-2.5 rounded-2xl w-[68%] max-w-xs">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-bold text-white/80">Offline Model</span>
-              <span className="text-white/50 font-bold">{Math.round(modelDownloadPct)}%</span>
+        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+          <div className="bg-amber-500/20 border border-amber-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="font-bold text-amber-300">⚠️ Stay connected — downloading offline capability</span>
+              <span className="text-amber-300 font-bold">{Math.round(modelDownloadPct)}%</span>
             </div>
-            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-300"
-                   style={{ width: `${modelDownloadPct}%` }} />
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-amber-300 rounded-full transition-all duration-300"
+                style={{ width: `${modelDownloadPct}%` }}
+              />
             </div>
           </div>
         </div>
@@ -996,7 +998,11 @@ export default function ScanPage() {
                 <p className="text-white font-bold text-sm">
                   {mode === 'sign_in' ? 'Ready to Sign In' : 'Ready to Sign Out'}
                 </p>
-                <p className="text-white/40 text-xs mt-0.5">Position face inside the frame</p>
+                {modelDownloadPct !== null && modelDownloadPct < 100 && !offlineReady ? (
+                  <p className="text-amber-400 text-xs mt-0.5">Offline not ready · keep connected ({Math.round(modelDownloadPct)}%)</p>
+                ) : (
+                  <p className="text-white/40 text-xs mt-0.5">Position face inside the frame</p>
+                )}
               </div>
               <div className="relative w-3 h-3">
                 <div className="absolute inset-0 w-3 h-3 rounded-full bg-emerald-400 animate-ping opacity-75" />

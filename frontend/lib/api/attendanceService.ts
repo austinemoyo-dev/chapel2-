@@ -130,7 +130,7 @@ export const attendanceService = {
 
   /** GET /api/attendance/embeddings/{service_id}/ — Download face embeddings */
   getEmbeddings: (serviceId: string) =>
-    api.get<EmbeddingsResponse>(`/api/attendance/embeddings/${serviceId}/`, 30000),
+    api.get<EmbeddingsResponse>(`/api/attendance/embeddings/${serviceId}/`, 60000),
 
   /** POST /api/attendance/manual-sign-in/ — Admin manual sign-in */
   manualSignIn: (data: { service_id: string; student_id: string; reason_note: string }) =>

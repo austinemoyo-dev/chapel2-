@@ -304,6 +304,32 @@ class ServiceCancelView(APIView):
         })
 
 
+class ServicePrepareView(APIView):
+    """
+    POST /api/services/{id}/prepare/
+    Pre-warm the face embeddings cache for a service so all devices load
+    instantly when they connect. Admin and above only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def post(self, request, id):
+        try:
+            service = Service.objects.get(id=id)
+        except Service.DoesNotExist:
+            return Response({'error': 'Service not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if service.is_cancelled:
+            return Response({'error': 'Cannot prepare a cancelled service.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.attendance.utils import get_service_embeddings
+        embeddings = get_service_embeddings(str(service.id))
+
+        return Response({
+            'message': f'{len(embeddings)} students loaded into cache.',
+            'student_count': len(embeddings),
+        })
+
+
 # =============================================================================
 # GEO-FENCE CONFIGURATION
 # =============================================================================
