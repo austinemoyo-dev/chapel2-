@@ -63,7 +63,8 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
   }, []);
 
   // Guard — redirect to login if not authenticated (except on auth pages)
-  const isAuthPage = pathname === '/student/login' || pathname === '/student/setup';
+  const isAuthPage = pathname === '/student/login' || pathname === '/student/setup'
+    || pathname === '/portal/login' || pathname === '/portal';
   useEffect(() => {
     if (!isLoading && !student && !isAuthPage) {
       router.replace('/student/login');
@@ -107,17 +108,19 @@ function PortalNav({ student, onLogout }: { student: PortalStudent; onLogout: ()
   const router   = useRouter();
 
   const tabs = [
-    { href: '/student',             icon: '🏠', label: 'Home'       },
-    { href: '/student/attendance',  icon: '📋', label: 'Attendance' },
-    { href: '/student/face',        icon: '📸', label: 'Face'       },
-    { href: '/student/profile',     icon: '👤', label: 'Profile'    },
+    { href: '/student',            icon: '🏠', label: 'Home'       },
+    { href: '/student/attendance', icon: '📋', label: 'Attendance' },
+    { href: '/student/face',       icon: '📸', label: 'Face'       },
+    { href: '/student/profile',    icon: '👤', label: 'Profile'    },
   ];
+  const isActive = (href: string) =>
+    href === '/student' ? pathname === '/student' : pathname.startsWith(href);
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-surface-1 border-t border-border">
       <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
         {tabs.map(tab => {
-          const active = pathname === tab.href;
+          const active = isActive(tab.href);
           return (
             <button
               key={tab.href}
