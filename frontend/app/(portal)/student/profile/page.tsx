@@ -17,9 +17,14 @@ export default function StudentProfilePage() {
   const { logout } = usePortalAuth();
   const [profile, setProfile] = useState<PortalProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError]    = useState<string | null>(null);
 
   useEffect(() => {
-    portalService.getMe().then(setProfile).catch(() => {}).finally(() => setLoading(false));
+    setError(null);
+    portalService.getMe()
+      .then(setProfile)
+      .catch((e: Error) => setError(e.message || 'Failed to load profile'))
+      .finally(() => setLoading(false));
   }, []);
 
   const initials = profile?.full_name.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase()).join('') ?? '';
@@ -38,11 +43,13 @@ export default function StudentProfilePage() {
 
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-surface-2 animate-pulse" />)}</div>
-      ) : !profile ? (
-        <div className="glass-panel rounded-2xl p-10 text-center">
-          <p className="text-sm text-muted">Could not load profile.</p>
+      ) : error ? (
+        <div className="glass-panel rounded-2xl p-8 border border-red-500/30 bg-red-500/5 text-center space-y-2">
+          <p className="text-sm font-semibold text-red-400">Could not load profile</p>
+          <p className="text-xs text-muted">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-2 text-xs text-primary underline">Retry</button>
         </div>
-      ) : (
+      ) : !profile ? null : (
         <div className="space-y-4">
           <div className="glass-panel rounded-2xl p-5 border border-border flex items-center gap-4">
             {profile.profile_photo ? (

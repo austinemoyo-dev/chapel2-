@@ -65,7 +65,7 @@ class StudentPortalAuthentication(BaseAuthentication):
             student = (
                 Student.objects
                 .select_related('account', 'semester')
-                .get(id=student_id, is_active=True)
+                .get(id=student_id)
             )
             try:
                 if not student.account.is_active:

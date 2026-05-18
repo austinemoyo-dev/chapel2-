@@ -8,9 +8,14 @@ export default function StudentFacePage() {
   const { student } = usePortalAuth();
   const [status, setStatus] = useState<FaceStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError]    = useState<string | null>(null);
 
   useEffect(() => {
-    portalService.getFaceStatus().then(setStatus).catch(() => {}).finally(() => setLoading(false));
+    setError(null);
+    portalService.getFaceStatus()
+      .then(setStatus)
+      .catch((e: Error) => setError(e.message || 'Failed to load face status'))
+      .finally(() => setLoading(false));
   }, []);
 
   const samples  = status?.approved_samples ?? 0;
@@ -26,11 +31,13 @@ export default function StudentFacePage() {
 
       {loading ? (
         <div className="h-48 rounded-2xl bg-surface-2 animate-pulse" />
-      ) : !status ? (
-        <div className="glass-panel rounded-2xl p-10 text-center">
-          <p className="text-sm text-muted">Could not load face status.</p>
+      ) : error ? (
+        <div className="glass-panel rounded-2xl p-8 border border-red-500/30 bg-red-500/5 text-center space-y-2">
+          <p className="text-sm font-semibold text-red-400">Could not load face status</p>
+          <p className="text-xs text-muted">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-2 text-xs text-primary underline">Retry</button>
         </div>
-      ) : (
+      ) : !status ? null : (
         <div className="space-y-4">
           <div className="glass-panel rounded-2xl p-5 border border-border space-y-4">
             <div className="flex items-center gap-4">

@@ -35,14 +35,24 @@ export default function StudentHomePage() {
   const [today, setToday]     = useState<TodayService[]>([]);
   const [summary, setSummary] = useState<Pick<PortalAttendance, 'percentage' | 'valid_count' | 'total_required' | 'below_threshold'> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([portalService.getToday(), portalService.getAttendance()])
-      .then(([t, a]) => {
-        setToday(t.services);
-        setSummary({ percentage: a.percentage, valid_count: a.valid_count, total_required: a.total_required, below_threshold: a.below_threshold });
+    setError(null);
+    Promise.allSettled([portalService.getToday(), portalService.getAttendance()])
+      .then(([todayResult, attendanceResult]) => {
+        if (todayResult.status === 'fulfilled') {
+          setToday(todayResult.value.services);
+        }
+        if (attendanceResult.status === 'fulfilled') {
+          const a = attendanceResult.value;
+          setSummary({ percentage: a.percentage, valid_count: a.valid_count, total_required: a.total_required, below_threshold: a.below_threshold });
+        }
+        const failed = [todayResult, attendanceResult].filter(r => r.status === 'rejected');
+        if (failed.length === 2) {
+          setError((failed[0] as PromiseRejectedResult).reason?.message || 'Failed to load data');
+        }
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -63,6 +73,12 @@ export default function StudentHomePage() {
 
       {loading ? (
         <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-surface-2 animate-pulse" />)}</div>
+      ) : error ? (
+        <div className="glass-panel rounded-2xl p-6 border border-red-500/30 bg-red-500/5 text-center space-y-2">
+          <p className="text-sm font-semibold text-red-400">Could not load data</p>
+          <p className="text-xs text-muted">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-2 text-xs text-primary underline">Retry</button>
+        </div>
       ) : (
         <>
           {summary && (

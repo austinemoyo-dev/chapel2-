@@ -138,13 +138,17 @@ export default function ChatWidget() {
   // Don't render on staff/admin pages — it overlaps the nav bar
   if (HIDDEN_PREFIXES.some((p) => pathname?.startsWith(p))) return null;
 
+  // On student portal pages the bottom nav bar is ~64px tall, so lift the FAB above it
+  const hasBottomNav = pathname?.startsWith('/student');
+  const fabBottom = hasBottomNav ? 'bottom-[88px]' : 'bottom-6';
+
   return (
     <>
       {/* Floating trigger */}
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Chapel support chat"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-[0_8px_32px_rgba(139,0,255,0.35)] flex items-center justify-center transition-all duration-300 active:scale-95 hover:scale-105"
+        className={`fixed ${fabBottom} right-6 z-50 w-14 h-14 rounded-full shadow-[0_8px_32px_rgba(139,0,255,0.35)] flex items-center justify-center transition-all duration-300 active:scale-95 hover:scale-105`}
         style={{ background: 'linear-gradient(135deg,#7C3AED 0%,#A855F7 100%)' }}
       >
         {open ? (
@@ -166,10 +170,10 @@ export default function ChatWidget() {
       {/* Panel */}
       {open && (
         <div
-          className="fixed bottom-24 right-6 z-50 flex flex-col rounded-[1.5rem] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.20)] animate-slide-up-fade"
+          className={`fixed ${hasBottomNav ? 'bottom-[160px]' : 'bottom-24'} right-6 z-50 flex flex-col rounded-[1.5rem] overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.20)] animate-slide-up-fade`}
           style={{
             width:  'min(400px, calc(100vw - 3rem))',
-            height: 'min(580px, calc(100dvh - 10rem))',
+            height: `min(580px, calc(100dvh - ${hasBottomNav ? '14rem' : '10rem'}))`,
             background: 'rgba(255,255,255,0.98)',
             backdropFilter: 'blur(28px)',
             border: '1.5px solid rgba(139,0,255,0.15)',

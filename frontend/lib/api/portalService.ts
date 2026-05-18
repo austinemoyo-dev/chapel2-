@@ -28,6 +28,7 @@ async function portalRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (data as any).error || (data as any).detail || `Request failed (${res.status})`;
+    console.error(`[portal] ${options.method || 'GET'} ${endpoint} → ${res.status}: ${msg}`);
     throw new Error(msg);
   }
   return data as T;

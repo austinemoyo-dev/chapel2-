@@ -23,9 +23,14 @@ export default function StudentAttendancePage() {
   const [data, setData]     = useState<PortalAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'present' | 'absent'>('all');
+  const [error, setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    portalService.getAttendance().then(setData).catch(() => {}).finally(() => setLoading(false));
+    setError(null);
+    portalService.getAttendance()
+      .then(setData)
+      .catch((e: Error) => setError(e.message || 'Failed to load attendance'))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = data?.services.filter(s => {
@@ -46,11 +51,13 @@ export default function StudentAttendancePage() {
 
       {loading ? (
         <div className="space-y-3">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-2xl bg-surface-2 animate-pulse" />)}</div>
-      ) : !data ? (
-        <div className="glass-panel rounded-2xl p-10 text-center">
-          <p className="text-sm text-muted">Could not load attendance data.</p>
+      ) : error ? (
+        <div className="glass-panel rounded-2xl p-8 border border-red-500/30 bg-red-500/5 text-center space-y-2">
+          <p className="text-sm font-semibold text-red-400">Could not load attendance</p>
+          <p className="text-xs text-muted">{error}</p>
+          <button onClick={() => window.location.reload()} className="mt-2 text-xs text-primary underline">Retry</button>
         </div>
-      ) : (
+      ) : !data ? null : (
         <>
           <div className="glass-panel rounded-2xl p-4 border border-border space-y-3">
             <div className="flex items-center justify-between">
