@@ -6,7 +6,8 @@
       "Bash(venv/Scripts/pip.exe list *)",
       "Bash(venv/Scripts/pip.exe index *)",
       "Bash(venv/Scripts/pip.exe install *)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/api/portal/lookup/ -X POST -H \"Content-Type: application/json\" -d '{\"identifier\":\"test\"}')"
     ]
   }
 }

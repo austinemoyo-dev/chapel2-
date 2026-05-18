@@ -19,11 +19,17 @@ async function portalRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   }
   if (token) headers['X-Portal-Token'] = token;
 
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    cache: 'no-store',
-    ...options,
-    headers: { ...headers, ...(options.headers as Record<string, string>) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${endpoint}`, {
+      cache: 'no-store',
+      ...options,
+      headers: { ...headers, ...(options.headers as Record<string, string>) },
+    });
+  } catch {
+    console.error(`[portal] ${options.method || 'GET'} ${endpoint} → network error (backend may not be running)`);
+    throw new Error('Cannot reach the server. Make sure the backend is running.');
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
