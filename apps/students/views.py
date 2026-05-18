@@ -667,6 +667,145 @@ class FaceCaptureReportView(APIView):
         })
 
 
+# =============================================================================
+# SUPERADMIN: STUDENT PORTAL ACCOUNT MANAGEMENT
+# =============================================================================
+
+class StudentAccountListView(APIView):
+    """
+    GET /api/admin/student-accounts/
+    Lists all students with their portal account status.
+    Superadmin only.
+    """
+    permission_classes = [IsSuperadmin]
+
+    def get(self, request):
+        from apps.students.models import StudentAccount
+
+        semester_id = request.query_params.get('semester_id')
+        qs = Student.objects.filter(semester__is_active=True) if not semester_id else Student.objects.filter(semester_id=semester_id)
+
+        search = request.query_params.get('search', '')
+        if search:
+            qs = qs.filter(full_name__icontains=search) | qs.filter(phone_number__icontains=search) | qs.filter(matric_number__icontains=search)
+
+        qs = qs.select_related('account').order_by('full_name')
+
+        result = []
+        for student in qs:
+            account = getattr(student, 'account', None)
+            result.append({
+                'id': str(student.id),
+                'full_name': student.full_name,
+                'system_id': student.system_id,
+                'phone_number': student.phone_number,
+                'matric_number': student.matric_number,
+                'student_type': student.student_type,
+                'service_group': student.service_group,
+                'face_registered': student.face_registered,
+                'is_active': student.is_active,
+                'has_portal_account': account is not None,
+                'portal_active': account.is_active if account else False,
+                'last_login': account.last_login.isoformat() if account and account.last_login else None,
+                'account_created_at': account.created_at.isoformat() if account else None,
+            })
+
+        return Response({'students': result, 'total': len(result)})
+
+
+class StudentAccountDetailView(APIView):
+    """
+    GET  /api/admin/student-accounts/{id}/ — View student portal account
+    POST /api/admin/student-accounts/{id}/reset-password/ — Set temporary password
+    PATCH /api/admin/student-accounts/{id}/ — Activate/deactivate portal access
+    Superadmin only.
+    """
+    permission_classes = [IsSuperadmin]
+
+    def get(self, request, id):
+        from apps.students.models import StudentAccount
+        try:
+            student = Student.objects.select_related('account', 'semester').get(id=id)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        account = getattr(student, 'account', None)
+        return Response({
+            'id': str(student.id),
+            'full_name': student.full_name,
+            'system_id': student.system_id,
+            'phone_number': student.phone_number,
+            'matric_number': student.matric_number,
+            'student_type': student.student_type,
+            'service_group': student.service_group,
+            'semester': student.semester.name if student.semester else None,
+            'face_registered': student.face_registered,
+            'is_active': student.is_active,
+            'has_portal_account': account is not None,
+            'portal_active': account.is_active if account else False,
+            'last_login': account.last_login.isoformat() if account and account.last_login else None,
+        })
+
+
+class StudentAccountResetPasswordView(APIView):
+    """POST /api/admin/student-accounts/{id}/reset-password/"""
+    permission_classes = [IsSuperadmin]
+
+    def post(self, request, id):
+        from django.contrib.auth.hashers import make_password
+        from apps.students.models import StudentAccount
+        import secrets
+
+        try:
+            student = Student.objects.get(id=id)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        temp_password = request.data.get('password', '')
+        if not temp_password:
+            # Generate a readable temporary password
+            temp_password = secrets.token_urlsafe(8)
+
+        account, created = StudentAccount.objects.get_or_create(student=student)
+        account.password = make_password(temp_password)
+        account.is_active = True
+        account.save(update_fields=['password', 'is_active', 'updated_at'])
+
+        logger.info('Superadmin %s reset portal password for student %s', request.user, student.id)
+
+        return Response({
+            'message': f'Password reset for {student.full_name}.',
+            'temp_password': temp_password,
+            'student_id': str(student.id),
+        })
+
+
+class StudentAccountToggleView(APIView):
+    """PATCH /api/admin/student-accounts/{id}/toggle/ — Activate/deactivate portal access"""
+    permission_classes = [IsSuperadmin]
+
+    def patch(self, request, id):
+        from apps.students.models import StudentAccount
+
+        try:
+            student = Student.objects.get(id=id)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            account = student.account
+        except StudentAccount.DoesNotExist:
+            return Response({'error': 'No portal account for this student.'}, status=status.HTTP_404_NOT_FOUND)
+
+        account.is_active = not account.is_active
+        account.save(update_fields=['is_active', 'updated_at'])
+
+        status_word = 'activated' if account.is_active else 'deactivated'
+        return Response({
+            'message': f'Portal access {status_word} for {student.full_name}.',
+            'portal_active': account.is_active,
+        })
+
 class AdminStudentDetailView(generics.RetrieveUpdateAPIView):
     """
     GET /api/admin/students/{id}/ — View student profile

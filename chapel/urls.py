@@ -38,6 +38,7 @@ urlpatterns = [
     # GET /api/registration/face-status/
     # PATCH /api/registration/update-matric/
     path('api/registration/', include('apps.students.urls')),
+    path('api/portal/', include('apps.students.portal_urls')),
 
     # Admin Student Management
     # PATCH /api/admin/registration/open/

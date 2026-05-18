@@ -140,6 +140,11 @@ class Service(models.Model):
         default=500,
         help_text='Maximum number of students for this service group'
     )
+    notes = models.TextField(
+        blank=True,
+        default='',
+        help_text='Special notes or instructions for this service (visible to ushers)'
+    )
     is_cancelled = models.BooleanField(
         default=False,
         help_text='Cancelled services are excluded from total required count'

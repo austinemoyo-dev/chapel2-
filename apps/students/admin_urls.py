@@ -11,6 +11,10 @@ from .views import (
     RegistrationWindowView,
     MatricUpdateLinkView,
     FaceCaptureReportView,
+    StudentAccountListView,
+    StudentAccountDetailView,
+    StudentAccountResetPasswordView,
+    StudentAccountToggleView,
 )
 
 urlpatterns = [
@@ -29,4 +33,10 @@ urlpatterns = [
 
     # Matric update link generation
     path('matric-update-link/<uuid:id>/', MatricUpdateLinkView.as_view(), name='admin-matric-update-link'),
+
+    # Student portal account management (Superadmin only)
+    path('student-accounts/', StudentAccountListView.as_view(), name='admin-student-accounts'),
+    path('student-accounts/<uuid:id>/', StudentAccountDetailView.as_view(), name='admin-student-account-detail'),
+    path('student-accounts/<uuid:id>/reset-password/', StudentAccountResetPasswordView.as_view(), name='admin-student-account-reset'),
+    path('student-accounts/<uuid:id>/toggle/', StudentAccountToggleView.as_view(), name='admin-student-account-toggle'),
 ]

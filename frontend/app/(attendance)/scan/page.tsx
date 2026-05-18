@@ -74,9 +74,32 @@ export default function ScanPage() {
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+
+  // Countdown timer for service window
+  useEffect(() => {
+    if (!selectedService) { setWindowCountdown(null); setWindowClosed(false); return; }
+    const tick = () => {
+      const now = Date.now();
+      const closeMs = new Date(selectedService.window_close_time).getTime();
+      const openMs  = new Date(selectedService.window_open_time).getTime();
+      if (now >= closeMs) { setWindowClosed(true); setWindowCountdown(null); return; }
+      setWindowClosed(false);
+      const diffMs  = (now < openMs ? openMs : closeMs) - now;
+      const h = Math.floor(diffMs / 3600000);
+      const m = Math.floor((diffMs % 3600000) / 60000);
+      const s = Math.floor((diffMs % 60000) / 1000);
+      const label = now < openMs ? 'Opens in' : 'Closes in';
+      setWindowCountdown(`${label} ${h > 0 ? `${h}h ` : ''}${m}m ${s}s`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [selectedService]);
   const [pendingSync, setPendingSync] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState('Select a service to prepare attendance.');
+  const [windowCountdown, setWindowCountdown] = useState<string | null>(null);
+  const [windowClosed, setWindowClosed] = useState(false);
   const [servicesLoaded, setServicesLoaded] = useState(false);
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
 
@@ -748,6 +771,26 @@ export default function ScanPage() {
             <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-primary to-accent rounded-full animate-pulse w-full" />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Window closed banner ── */}
+      {windowClosed && (
+        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+          <div className="bg-red-500/20 border border-red-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl text-center">
+            <p className="text-red-300 font-bold text-sm">Attendance window has closed</p>
+            <p className="text-white/50 text-xs mt-0.5">No more scans can be recorded for this service</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Countdown timer ── */}
+      {windowCountdown && !windowClosed && !embeddingLoading && (
+        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+          <div className="bg-black/40 border border-white/10 backdrop-blur-sm px-4 py-2 rounded-2xl flex items-center justify-between">
+            <span className="text-white/60 text-xs font-medium">Window</span>
+            <span className="text-white font-bold text-sm tabular-nums">{windowCountdown}</span>
           </div>
         </div>
       )}

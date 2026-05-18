@@ -277,3 +277,36 @@ class FaceSample(models.Model):
             original_name = self.sample_file.name.split('/')[-1]
             self.sample_file.name = f'face_samples/{semester_id}/{student_id}/{original_name}'
         super().save(*args, **kwargs)
+
+
+class StudentAccount(models.Model):
+    """
+    Portal login account for a student.
+
+    Authentication uses phone number (new students) or matric number (old students).
+    Password is set only after face verification to prevent account hijacking.
+    Superadmin can reset passwords directly.
+    """
+    student = models.OneToOneField(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='account',
+        help_text='Student this portal account belongs to'
+    )
+    password = models.CharField(
+        max_length=128,
+        help_text='Hashed password (Django make_password)'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Deactivate to block portal access without deleting the account'
+    )
+    last_login = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_accounts'
+
+    def __str__(self):
+        return f'Portal account — {self.student.full_name}'

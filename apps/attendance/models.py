@@ -101,6 +101,12 @@ class AttendanceRecord(models.Model):
         null=True,
         help_text='Result of offline sync validation (e.g., "accepted", "rejected: out-of-window")'
     )
+    face_image = models.ImageField(
+        upload_to='attendance_faces/%Y/%m/',
+        null=True,
+        blank=True,
+        help_text='Face image captured at sign-in time for audit purposes'
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

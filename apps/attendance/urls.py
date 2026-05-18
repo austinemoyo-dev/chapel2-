@@ -17,6 +17,9 @@ from .views import (
     BulkAttendanceView,
     DeviceReadyView,
     DeviceStatusView,
+    PhotoAuditView,
+    SuspiciousPatternsView,
+    BriefingView,
 )
 
 urlpatterns = [
@@ -37,6 +40,9 @@ urlpatterns = [
     path('bulk-mark/', BulkAttendanceView.as_view(), name='attendance-bulk-mark'),
     path('device-ready/', DeviceReadyView.as_view(), name='attendance-device-ready'),
     path('device-status/', DeviceStatusView.as_view(), name='attendance-device-status'),
+    path('<uuid:id>/photo/', PhotoAuditView.as_view(), name='attendance-photo-audit'),
+    path('suspicious/', SuspiciousPatternsView.as_view(), name='attendance-suspicious'),
+    path('briefing/', BriefingView.as_view(), name='attendance-briefing'),
 ]
 
 

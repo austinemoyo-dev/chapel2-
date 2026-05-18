@@ -135,5 +135,31 @@ export const adminService = {
       S2: FaceCaptureStats;
       S3: FaceCaptureStats;
     }>(`/api/admin/students/face-capture-report/${semesterId ? `?semester_id=${semesterId}` : ''}`),
+
+  getStudentAccounts: (search?: string) =>
+    api.get<{ students: any[]; total: number }>(
+      `/api/admin/student-accounts/${search ? `?search=${encodeURIComponent(search)}` : ''}`
+    ),
+
+  resetStudentAccountPassword: (id: string, password?: string) =>
+    api.post<{ message: string; temp_password: string; student_id: string }>(
+      `/api/admin/student-accounts/${id}/reset-password/`,
+      password ? { password } : {}
+    ),
+
+  toggleStudentAccount: (id: string) =>
+    api.patch<{ message: string; portal_active: boolean }>(
+      `/api/admin/student-accounts/${id}/toggle/`
+    ),
+
+  getPhotoAudit: (recordId: string) =>
+    api.get<{ record_id: string; student_name: string; signed_in_at: string; face_image_url: string }>(
+      `/api/attendance/${recordId}/photo/`
+    ),
+
+  getSuspiciousPatterns: (serviceId?: string) =>
+    api.get<{ service_id: string | null; total_flags: number; flags: any[] }>(
+      `/api/attendance/suspicious/${serviceId ? `?service_id=${serviceId}` : ''}`
+    ),
 };
 

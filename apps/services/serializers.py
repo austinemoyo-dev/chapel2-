@@ -67,7 +67,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'id', 'semester', 'service_type', 'service_group', 'name',
             'scheduled_date', 'window_open_time', 'window_close_time',
             'signout_required', 'signout_open_time', 'signout_close_time',
-            'capacity_cap', 'is_cancelled', 'is_window_open', 'created_at',
+            'capacity_cap', 'notes', 'is_cancelled', 'is_window_open', 'created_at',
         ]
         read_only_fields = ['id', 'created_at', 'is_window_open']
 
@@ -101,7 +101,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
             'id', 'semester', 'service_type', 'service_group', 'name',
             'scheduled_date', 'window_open_time', 'window_close_time',
             'signout_required', 'signout_open_time', 'signout_close_time',
-            'capacity_cap', 'is_cancelled', 'is_window_open',
+            'capacity_cap', 'notes', 'is_cancelled', 'is_window_open',
         ]
 
 

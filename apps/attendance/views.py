@@ -161,9 +161,13 @@ class SignInView(APIView):
                 gps_lat=gps_lat,
                 gps_lng=gps_lng,
                 signed_in_at=timezone.now(),
-                is_valid=not service.signout_required,  # Valid immediately if no sign-out needed
+                is_valid=not service.signout_required,
                 is_offline_record=False,
             )
+            # Save face image for audit if provided
+            if data.get('face_image'):
+                record.face_image = data['face_image']
+                record.save(update_fields=['face_image'])
         except IntegrityError:
             return Response({
                 'error': 'Already marked for this service.',
@@ -601,6 +605,174 @@ class DeviceStatusView(APIView):
             })
 
         return Response({'devices': result})
+
+
+class PhotoAuditView(APIView):
+    """
+    GET /api/attendance/{id}/photo/
+    Returns the face image stored at sign-in for audit purposes.
+    Admin and above only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request, id):
+        try:
+            record = AttendanceRecord.objects.select_related('student', 'service').get(id=id)
+        except AttendanceRecord.DoesNotExist:
+            return Response({'error': 'Record not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not record.face_image:
+            return Response({'error': 'No face image stored for this record.'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'record_id': str(record.id),
+            'student_name': record.student.full_name,
+            'signed_in_at': record.signed_in_at.isoformat(),
+            'face_image_url': request.build_absolute_uri(record.face_image.url),
+        })
+
+
+class SuspiciousPatternsView(APIView):
+    """
+    GET /api/attendance/suspicious/?service_id=<uuid>
+    Flags:
+    - Same device scanning > 10 students in < 5 minutes (device abuse)
+    - Attendance records where GPS is outside the configured geo-fence
+    Admin and above only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from django.db.models import Count
+        from apps.attendance.utils import _get_geofence_config
+
+        service_id = request.query_params.get('service_id')
+        qs = AttendanceRecord.objects.select_related('student', 'protocol_member')
+
+        if service_id:
+            qs = qs.filter(service_id=service_id)
+
+        flags = []
+
+        # Flag 1: Same device scanning > 10 students in any 5-minute window
+        from django.db.models.functions import TruncMinute
+        device_counts = (
+            qs.values('device_id')
+            .annotate(total=Count('id'))
+            .filter(total__gt=10)
+        )
+        for entry in device_counts:
+            records = qs.filter(device_id=entry['device_id']).order_by('signed_in_at')
+            record_list = list(records.values('id', 'student__full_name', 'signed_in_at', 'device_id'))
+            # Check if any 5-minute window has > 10 scans
+            for i, r in enumerate(record_list):
+                window_end = r['signed_in_at']
+                window_start = window_end - timedelta(minutes=5)
+                window_count = sum(
+                    1 for x in record_list
+                    if window_start <= x['signed_in_at'] <= window_end
+                )
+                if window_count > 10:
+                    flags.append({
+                        'type': 'rapid_scanning',
+                        'severity': 'high',
+                        'message': f"Device {entry['device_id'][:16]}... scanned {window_count} students in 5 minutes",
+                        'device_id': entry['device_id'],
+                        'count': window_count,
+                    })
+                    break
+
+        # Flag 2: Records with GPS outside geo-fence
+        try:
+            lat, lng, radius = _get_geofence_config()
+            if lat != 0.0 or lng != 0.0:
+                import math
+                for record in qs.filter(is_offline_record=False).exclude(gps_lat=0, gps_lng=0)[:500]:
+                    from apps.attendance.utils import haversine_distance
+                    dist = haversine_distance(float(record.gps_lat), float(record.gps_lng), lat, lng)
+                    if dist > radius * 1.5:  # 50% beyond fence
+                        flags.append({
+                            'type': 'outside_geofence',
+                            'severity': 'medium',
+                            'message': f"{record.student.full_name} scanned {dist:.0f}m from chapel (limit: {radius:.0f}m)",
+                            'record_id': str(record.id),
+                            'student_name': record.student.full_name,
+                            'distance_meters': round(dist),
+                            'signed_in_at': record.signed_in_at.isoformat(),
+                        })
+        except Exception:
+            pass
+
+        return Response({
+            'service_id': service_id,
+            'total_flags': len(flags),
+            'flags': flags,
+        })
+
+
+class BriefingView(APIView):
+    """
+    GET /api/attendance/briefing/
+    Today's services with scan counts, expected headcount, and notes.
+    For ushers and admins.
+    """
+    permission_classes = [IsProtocolMemberOrAbove]
+
+    def get(self, request):
+        from apps.services.models import Service
+        from apps.students.models import Student
+        from django.db.models import Count
+
+        today = timezone.now().date()
+
+        services = Service.objects.filter(
+            semester__is_active=True,
+            scheduled_date=today,
+            is_cancelled=False,
+        ).prefetch_related('attendance_records')
+
+        result = []
+        for svc in services:
+            signed_in = AttendanceRecord.objects.filter(service=svc).count()
+            expected = Student.objects.filter(
+                semester=svc.semester,
+                is_active=True,
+            )
+            if svc.service_group != 'all':
+                expected = expected.filter(service_group=svc.service_group)
+            expected_count = expected.count()
+
+            now = timezone.now()
+            if svc.window_open_time > now:
+                window_status = 'upcoming'
+                seconds_until_open = int((svc.window_open_time - now).total_seconds())
+            elif svc.window_close_time < now:
+                window_status = 'closed'
+                seconds_until_open = 0
+            else:
+                window_status = 'open'
+                seconds_until_open = 0
+
+            seconds_until_close = max(0, int((svc.window_close_time - now).total_seconds()))
+
+            result.append({
+                'id': str(svc.id),
+                'name': svc.name or f'{svc.service_type.title()} {svc.service_group}',
+                'service_type': svc.service_type,
+                'service_group': svc.service_group,
+                'window_open_time': svc.window_open_time.isoformat(),
+                'window_close_time': svc.window_close_time.isoformat(),
+                'window_status': window_status,
+                'seconds_until_open': seconds_until_open,
+                'seconds_until_close': seconds_until_close,
+                'signed_in_count': signed_in,
+                'expected_count': expected_count,
+                'attendance_pct': round(signed_in / expected_count * 100, 1) if expected_count else 0,
+                'notes': svc.notes,
+                'signout_required': svc.signout_required,
+            })
+
+        return Response({'date': str(today), 'services': result})
 
 
 class ArcFaceModelView(APIView):
