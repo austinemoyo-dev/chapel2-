@@ -7,6 +7,22 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Skeleton from '@/components/ui/Skeleton';
 
+interface DeviceStatus {
+  id: string;
+  name: string;
+  device_id: string;
+  offline_ready: boolean;
+  ready_at: string | null;
+}
+
+function timeAgo(iso: string) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 interface ActiveScanner {
   protocol_member_name: string;
   device_id: string;
@@ -38,6 +54,8 @@ export default function DevicesPage() {
   const [loading, setLoading] = useState(false);
   const [servicesLoading, setServicesLoading] = useState(true);
   const [lastPoll, setLastPoll] = useState<Date>(new Date());
+  const [deviceStatus, setDeviceStatus] = useState<DeviceStatus[]>([]);
+  const [statusLoading, setStatusLoading] = useState(true);
 
   useEffect(() => {
     serviceService.listServices({ is_cancelled: 'false' })
@@ -48,6 +66,23 @@ export default function DevicesPage() {
       .catch(() => {})
       .finally(() => setServicesLoading(false));
   }, []);
+
+  const fetchDeviceStatus = useCallback(async () => {
+    try {
+      const data = await adminService.getDeviceStatus();
+      setDeviceStatus(data.devices);
+    } catch {
+      // Silent fail
+    } finally {
+      setStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDeviceStatus();
+    const interval = setInterval(fetchDeviceStatus, 30000);
+    return () => clearInterval(interval);
+  }, [fetchDeviceStatus]);
 
   const fetchScanners = useCallback(async () => {
     if (!selectedId) return;
@@ -92,6 +127,54 @@ export default function DevicesPage() {
           </div>
         )}
       </div>
+
+      {/* Offline readiness panel */}
+      <Card variant="glass">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-sm font-bold text-foreground">Offline Model Readiness</p>
+            <p className="text-xs text-muted mt-0.5">Which phones have downloaded the 166MB offline model</p>
+          </div>
+          {deviceStatus.length > 0 && (
+            <Badge variant={deviceStatus.every(d => d.offline_ready) ? 'success' : 'warning'}>
+              {deviceStatus.filter(d => d.offline_ready).length}/{deviceStatus.length} ready
+            </Badge>
+          )}
+        </div>
+
+        {statusLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-10 rounded-xl" />)}
+          </div>
+        ) : deviceStatus.length === 0 ? (
+          <p className="text-xs text-muted text-center py-4">No protocol members found.</p>
+        ) : (
+          <div className="space-y-2">
+            {deviceStatus.map(device => (
+              <div key={device.id} className="flex items-center justify-between bg-surface-2 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{device.name}</p>
+                  <p className="text-xs text-muted">
+                    {device.device_id ? `Device: ${device.device_id.slice(0, 12)}…` : 'No device bound'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  {device.offline_ready ? (
+                    <>
+                      <Badge variant="success">Ready</Badge>
+                      {device.ready_at && (
+                        <p className="text-[10px] text-muted mt-1">{timeAgo(device.ready_at)}</p>
+                      )}
+                    </>
+                  ) : (
+                    <Badge variant="danger">Not downloaded</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {/* Service selector */}
       <Card variant="glass">

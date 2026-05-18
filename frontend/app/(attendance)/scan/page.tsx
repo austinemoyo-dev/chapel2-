@@ -200,7 +200,13 @@ export default function ScanPage() {
       downloadAndCacheModel((pct) => {
         if (!cancelled) setModelDownloadPct(pct);
       })
-        .then(() => { if (!cancelled) { setOfflineReady(true); setModelDownloadPct(100); } })
+        .then(() => {
+          if (!cancelled) {
+            setOfflineReady(true);
+            setModelDownloadPct(100);
+            attendanceService.reportModelReady().catch(() => {});
+          }
+        })
         .catch((err) => {
           if (!cancelled) {
             console.warn('[OfflineModel] Download failed:', err);

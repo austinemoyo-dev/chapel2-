@@ -621,6 +621,52 @@ class AdminStudentListView(generics.ListAPIView):
         return qs
 
 
+class FaceCaptureReportView(APIView):
+    """
+    GET /api/admin/students/face-capture-report/
+    Returns face capture statistics grouped by service group.
+    - no_capture: face_registered=False AND 0 face samples (never tried)
+    - bad_capture: face_registered=False AND has some samples (tried but insufficient/rejected)
+    - inactive: is_active=False total
+    - duplicate_flagged: duplicate_flag=True
+    Admin and above only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from django.db.models import Count
+
+        semester_id = request.query_params.get('semester_id')
+        base_qs = (
+            Student.objects.filter(semester_id=semester_id)
+            if semester_id
+            else Student.objects.filter(semester__is_active=True)
+        )
+
+        def stats(qs):
+            total = qs.count()
+            active = qs.filter(is_active=True).count()
+            duplicate = qs.filter(duplicate_flag=True).count()
+            not_duplicate = qs.filter(face_registered=False, duplicate_flag=False).annotate(
+                sample_count=Count('face_samples')
+            )
+            return {
+                'total': total,
+                'active': active,
+                'inactive': total - active,
+                'no_capture': not_duplicate.filter(sample_count=0).count(),
+                'bad_capture': not_duplicate.filter(sample_count__gt=0).count(),
+                'duplicate_flagged': duplicate,
+            }
+
+        return Response({
+            'all': stats(base_qs),
+            'S1': stats(base_qs.filter(service_group='S1')),
+            'S2': stats(base_qs.filter(service_group='S2')),
+            'S3': stats(base_qs.filter(service_group='S3')),
+        })
+
+
 class AdminStudentDetailView(generics.RetrieveUpdateAPIView):
     """
     GET /api/admin/students/{id}/ — View student profile

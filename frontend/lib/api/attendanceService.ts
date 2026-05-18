@@ -132,6 +132,10 @@ export const attendanceService = {
   getEmbeddings: (serviceId: string) =>
     api.get<EmbeddingsResponse>(`/api/attendance/embeddings/${serviceId}/`, 60000),
 
+  /** POST /api/attendance/device-ready/ — Report offline model downloaded */
+  reportModelReady: () =>
+    api.post<{ message: string }>('/api/attendance/device-ready/'),
+
   /** POST /api/attendance/manual-sign-in/ — Admin manual sign-in */
   manualSignIn: (data: { service_id: string; student_id: string; reason_note: string }) =>
     api.post<{ message: string; record_id: string; student_id: string; student_name: string; signed_in_at: string }>(

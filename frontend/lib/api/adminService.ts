@@ -26,6 +26,15 @@ export interface AttendanceRecord {
   created_at: string;
 }
 
+export interface FaceCaptureStats {
+  total: number;
+  active: number;
+  inactive: number;
+  no_capture: number;
+  bad_capture: number;
+  duplicate_flagged: number;
+}
+
 export interface BackdateRequest {
   student_id: string;
   service_ids: string[];
@@ -107,5 +116,24 @@ export const adminService = {
       }[];
       total_active: number;
     }>(`/api/attendance/active-scanners/${serviceId}/`),
+
+  getDeviceStatus: () =>
+    api.get<{
+      devices: {
+        id: string;
+        name: string;
+        device_id: string;
+        offline_ready: boolean;
+        ready_at: string | null;
+      }[];
+    }>('/api/attendance/device-status/'),
+
+  getFaceCaptureReport: (semesterId?: string) =>
+    api.get<{
+      all: FaceCaptureStats;
+      S1: FaceCaptureStats;
+      S2: FaceCaptureStats;
+      S3: FaceCaptureStats;
+    }>(`/api/admin/students/face-capture-report/${semesterId ? `?semester_id=${semesterId}` : ''}`),
 };
 

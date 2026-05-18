@@ -548,6 +548,61 @@ class EmbeddingsDownloadView(APIView):
         })
 
 
+class DeviceReadyView(APIView):
+    """
+    POST /api/attendance/device-ready/
+    Called by a protocol member device after the offline ONNX model finishes
+    downloading. Records readiness in cache so admins can see which phones
+    are ready before the service starts.
+    """
+    permission_classes = [IsProtocolMember]
+
+    def post(self, request):
+        from django.core.cache import cache
+        user = request.user
+        cache.set(
+            f'model_ready_{user.id}',
+            {
+                'name': user.full_name,
+                'device_id': user.bound_device_id or '',
+                'ready_at': timezone.now().isoformat(),
+            },
+            timeout=60 * 60 * 24 * 7,
+        )
+        return Response({'message': 'Device marked as offline-ready.'})
+
+
+class DeviceStatusView(APIView):
+    """
+    GET /api/attendance/device-status/
+    Returns all protocol members and whether their offline model is downloaded.
+    Admin and above only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from django.core.cache import cache
+        from apps.accounts.models import AdminUser
+
+        members = AdminUser.objects.filter(
+            role__in=['protocol_member', 'protocol_admin'],
+            is_active=True,
+        ).values('id', 'full_name', 'bound_device_id')
+
+        result = []
+        for member in members:
+            cached = cache.get(f'model_ready_{member["id"]}')
+            result.append({
+                'id': str(member['id']),
+                'name': member['full_name'],
+                'device_id': member['bound_device_id'] or '',
+                'offline_ready': cached is not None,
+                'ready_at': cached['ready_at'] if cached else None,
+            })
+
+        return Response({'devices': result})
+
+
 class ArcFaceModelView(APIView):
     """
     GET /api/attendance/offline-model/

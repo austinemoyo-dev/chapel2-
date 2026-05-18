@@ -15,6 +15,8 @@ from .views import (
     ActiveScannersView,
     ManualAttendanceView,
     BulkAttendanceView,
+    DeviceReadyView,
+    DeviceStatusView,
 )
 
 urlpatterns = [
@@ -33,5 +35,8 @@ urlpatterns = [
     path('active-scanners/<uuid:service_id>/', ActiveScannersView.as_view(), name='attendance-active-scanners'),
     path('manual-sign-in/', ManualAttendanceView.as_view(), name='attendance-manual-sign-in'),
     path('bulk-mark/', BulkAttendanceView.as_view(), name='attendance-bulk-mark'),
+    path('device-ready/', DeviceReadyView.as_view(), name='attendance-device-ready'),
+    path('device-status/', DeviceStatusView.as_view(), name='attendance-device-status'),
 ]
+
 

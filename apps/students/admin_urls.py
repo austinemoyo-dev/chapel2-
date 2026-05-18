@@ -10,6 +10,7 @@ from .views import (
     DuplicateResolutionView,
     RegistrationWindowView,
     MatricUpdateLinkView,
+    FaceCaptureReportView,
 )
 
 urlpatterns = [
@@ -18,6 +19,7 @@ urlpatterns = [
 
     # Student management
     path('students/', AdminStudentListView.as_view(), name='admin-students-list'),
+    path('students/face-capture-report/', FaceCaptureReportView.as_view(), name='admin-face-capture-report'),
     path('students/<uuid:id>/', AdminStudentDetailView.as_view(), name='admin-students-detail'),
     path('students/<uuid:id>/delete/', AdminStudentDeleteView.as_view(), name='admin-students-delete'),
     path('students/<uuid:id>/reset-face/', ResetFaceCaptureView.as_view(), name='admin-students-reset-face'),

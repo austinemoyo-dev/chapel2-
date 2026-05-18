@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { adminService } from '@/lib/api/adminService';
+import { useState, useEffect, useCallback } from 'react';
+import { adminService, type FaceCaptureStats } from '@/lib/api/adminService';
 import { registrationService, type Student } from '@/lib/api/registrationService';
 import { useAuth } from '@/providers/AuthProvider';
 import { useToast } from '@/providers/ToastProvider';
@@ -86,6 +86,7 @@ export default function StudentsPage() {
   });
 
   const [statusFilter, setStatusFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
   const [facultyFilter, setFacultyFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
@@ -93,7 +94,19 @@ export default function StudentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [report, setReport] = useState<Record<string, FaceCaptureStats> | null>(null);
+  const [reportGroup, setReportGroup] = useState<'all' | 'S1' | 'S2' | 'S3'>('all');
+
   const canAdd = hasRole(ROLES.SUPERADMIN) || hasPermission(ADMIN_PERMISSIONS.ADD_STUDENTS);
+
+  const fetchReport = useCallback(async () => {
+    try {
+      const data = await adminService.getFaceCaptureReport();
+      setReport(data);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchReport(); }, [fetchReport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +115,8 @@ export default function StudentsPage() {
     if (statusFilter === 'active') params.is_active = 'true';
     if (statusFilter === 'inactive') params.is_active = 'false';
     if (statusFilter === 'incomplete') params.face_registered = 'false';
+    if (statusFilter === 'duplicate') params.duplicate_flag = 'true';
+    if (groupFilter) params.service_group = groupFilter;
     if (levelFilter) params.level = levelFilter;
     if (facultyFilter) params.faculty = facultyFilter;
     if (departmentFilter) params.department = departmentFilter;
@@ -119,7 +134,7 @@ export default function StudentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [search, statusFilter, levelFilter, facultyFilter, departmentFilter]);
+  }, [search, statusFilter, groupFilter, levelFilter, facultyFilter, departmentFilter]);
 
   async function handleAddStudent() {
     if (!form.full_name || !form.phone_number || !form.faculty || !form.department || !form.level || !form.gender) {
@@ -192,6 +207,53 @@ export default function StudentsPage() {
         </div>
         {canAdd && <Button onClick={() => setShowAdd(true)}>Add Student</Button>}
       </div>
+
+      {/* Face Capture Report */}
+      {report && (() => {
+        const stats = report[reportGroup];
+        const groups: Array<'all' | 'S1' | 'S2' | 'S3'> = ['all', 'S1', 'S2', 'S3'];
+        const cards: { label: string; key: keyof FaceCaptureStats; color: string; filter: string; group: string }[] = [
+          { label: 'Total',            key: 'total',            color: 'text-foreground',  filter: 'all',        group: reportGroup === 'all' ? '' : reportGroup },
+          { label: 'Active',           key: 'active',           color: 'text-emerald-400', filter: 'active',     group: reportGroup === 'all' ? '' : reportGroup },
+          { label: 'Inactive',         key: 'inactive',         color: 'text-amber-400',   filter: 'inactive',   group: reportGroup === 'all' ? '' : reportGroup },
+          { label: 'No Face Capture',  key: 'no_capture',       color: 'text-red-400',     filter: 'incomplete', group: reportGroup === 'all' ? '' : reportGroup },
+          { label: 'Bad Capture',      key: 'bad_capture',      color: 'text-orange-400',  filter: 'incomplete', group: reportGroup === 'all' ? '' : reportGroup },
+          { label: 'Duplicate Flagged',key: 'duplicate_flagged',color: 'text-purple-400',  filter: 'duplicate',  group: reportGroup === 'all' ? '' : reportGroup },
+        ];
+        return (
+          <div className="glass-panel p-4 rounded-2xl border border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-foreground">Face Capture Status</p>
+              <div className="flex gap-1">
+                {groups.map(g => (
+                  <button
+                    key={g}
+                    onClick={() => setReportGroup(g)}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                      reportGroup === g ? 'bg-primary text-white' : 'bg-surface-2 text-muted hover:text-foreground'
+                    }`}
+                  >
+                    {g === 'all' ? 'All' : g}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {cards.map(card => (
+                <button
+                  key={card.label}
+                  onClick={() => { setStatusFilter(card.filter); setGroupFilter(card.group); }}
+                  className="bg-surface-2 rounded-xl p-3 text-center hover:bg-surface-3 transition-colors cursor-pointer"
+                >
+                  <p className={`text-xl font-bold ${card.color}`}>{stats[card.key]}</p>
+                  <p className="text-[10px] text-muted mt-0.5 leading-tight">{card.label}</p>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted">Click a card to filter the list below</p>
+          </div>
+        );
+      })()}
 
       <div className="space-y-3">
         <div className="flex gap-2">
