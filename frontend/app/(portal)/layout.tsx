@@ -63,10 +63,10 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
   }, []);
 
   // Guard — redirect to login if not authenticated (except on auth pages)
-  const isAuthPage = pathname === '/portal/login' || pathname === '/portal/setup';
+  const isAuthPage = pathname === '/student/login' || pathname === '/student/setup';
   useEffect(() => {
     if (!isLoading && !student && !isAuthPage) {
-      router.replace('/portal/login');
+      router.replace('/student/login');
     }
   }, [isLoading, student, isAuthPage, router]);
 
@@ -107,10 +107,10 @@ function PortalNav({ student, onLogout }: { student: PortalStudent; onLogout: ()
   const router   = useRouter();
 
   const tabs = [
-    { href: '/portal',          icon: '🏠', label: 'Home'       },
-    { href: '/portal/attendance', icon: '📋', label: 'Attendance' },
-    { href: '/portal/face',     icon: '📸', label: 'Face'       },
-    { href: '/portal/profile',  icon: '👤', label: 'Profile'    },
+    { href: '/student',             icon: '🏠', label: 'Home'       },
+    { href: '/student/attendance',  icon: '📋', label: 'Attendance' },
+    { href: '/student/face',        icon: '📸', label: 'Face'       },
+    { href: '/student/profile',     icon: '👤', label: 'Profile'    },
   ];
 
   return (
