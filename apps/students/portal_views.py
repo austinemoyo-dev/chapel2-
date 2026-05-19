@@ -311,6 +311,7 @@ class PortalMeView(APIView):
     """GET /api/portal/me/ — Student profile"""
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
 
     def get(self, request):
         student = request.user
@@ -344,6 +345,7 @@ class PortalAttendanceView(APIView):
     """GET /api/portal/attendance/ — Full attendance history with percentage"""
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
 
     def get(self, request):
         from apps.attendance.utils import calculate_attendance_percentage
@@ -406,6 +408,7 @@ class PortalTodayView(APIView):
     """GET /api/portal/today/ — Today's services for the student"""
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
 
     def get(self, request):
         from apps.services.models import Service
@@ -451,6 +454,7 @@ class PortalFaceStatusView(APIView):
     """GET /api/portal/face-status/ — Face capture progress"""
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
 
     def get(self, request):
         from apps.students.models import FaceSample
