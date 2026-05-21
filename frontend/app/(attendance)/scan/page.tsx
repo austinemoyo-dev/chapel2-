@@ -882,8 +882,8 @@ export default function ScanPage() {
 
   return (
     <div className="h-dvh flex flex-col relative bg-black overflow-hidden">
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
-      <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'scaleX(-1)' }} />
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+      <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Vignette — darkens edges, keeps face area bright */}
