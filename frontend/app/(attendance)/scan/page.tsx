@@ -238,7 +238,9 @@ export default function ScanPage() {
           const ready = !cancelled && await isModelReady();
           if (!cancelled) {
             setOfflineReady(ready);
-            setModelDownloadPct(100);
+            // If the session couldn't be created (e.g. iOS WASM memory limit),
+            // reset to null so the 100% progress bar doesn't linger.
+            setModelDownloadPct(ready ? 100 : null);
             if (ready) attendanceService.reportModelReady().catch(() => {});
           }
         })
@@ -447,9 +449,9 @@ export default function ScanPage() {
         setResult({
           type: 'failed',
           name: '',
-          message: modelDownloadPct !== null
+          message: modelDownloadPct !== null && modelDownloadPct < 100
             ? `Offline model downloading… ${modelDownloadPct}%. Please wait or reconnect.`
-            : 'Offline model not ready. Please reconnect to Wi-Fi.',
+            : 'Offline face scan is not available. Please connect to the internet to scan.',
         });
         setScanning(false);
         setPhase('result');
