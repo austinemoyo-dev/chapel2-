@@ -931,7 +931,7 @@ export default function ScanPage() {
 
       {/* ── Window closed banner ── */}
       {windowClosed && (
-        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
+        <div className="absolute top-[13rem] inset-x-4 z-30 pointer-events-none">
           <div className="bg-red-500/20 border border-red-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl text-center">
             <p className="text-red-300 font-bold text-sm">Attendance window has closed</p>
             <p className="text-white/50 text-xs mt-0.5">No more scans can be recorded for this service</p>
@@ -939,9 +939,9 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* ── Countdown timer ── */}
-      {windowCountdown && !windowClosed && !embeddingLoading && (
-        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
+      {/* ── Countdown timer — hidden while download warning is also visible ── */}
+      {windowCountdown && !windowClosed && !embeddingLoading && !(modelDownloadPct !== null && modelDownloadPct < 100) && (
+        <div className="absolute top-[13rem] inset-x-4 z-30 pointer-events-none">
           <div className="bg-black/40 border border-white/10 backdrop-blur-sm px-4 py-2 rounded-2xl flex items-center justify-between">
             <span className="text-white/60 text-xs font-medium">Window</span>
             <span className="text-white font-bold text-sm tabular-nums">{windowCountdown}</span>
@@ -951,7 +951,7 @@ export default function ScanPage() {
 
       {/* ── Model download warning banner ── */}
       {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
-        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
+        <div className="absolute top-[13rem] inset-x-4 z-30 pointer-events-none">
           <div className="bg-amber-500/20 border border-amber-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl">
             <div className="flex items-center justify-between text-xs mb-2">
               <span className="font-bold text-amber-300">⚠️ Stay connected — downloading offline capability</span>
@@ -968,8 +968,10 @@ export default function ScanPage() {
       )}
 
       {/* ── Face Frame ── */}
+      {/* paddingTop uses max() so the frame always clears the mode-toggle (76 px)
+          and camera-picker (140 px) rows on every screen size */}
       <div className="absolute inset-0 z-20 pointer-events-none flex justify-center"
-           style={{ paddingTop: '16%', paddingBottom: '30%' }}>
+           style={{ paddingTop: 'max(22%, 12rem)', paddingBottom: '22%' }}>
         <div
           style={{ width: '62%', maxWidth: '230px', aspectRatio: '3/4' }}
           className={`relative transition-all duration-500 ease-out ${
