@@ -11,6 +11,7 @@ class AttendanceConfig(AppConfig):
     verbose_name = 'Attendance Engine'
 
     def ready(self):
+        import apps.attendance.signals  # noqa: F401 — register post_save signal
         threading.Thread(target=self._warmup_face_model, daemon=True).start()
 
     @staticmethod

@@ -18,6 +18,15 @@ const WASM_PATHS = {
   mjs:  '/ort-wasm/ort-wasm-simd-threaded.mjs',
   wasm: '/ort-wasm/ort-wasm-simd-threaded.wasm',
 };
+
+// All iOS browsers (Safari, Chrome/CriOS, Firefox/FxiOS, etc.) are required by
+// Apple to use the WebKit engine, which imposes strict WebAssembly memory limits.
+// A 166 MB model with SIMD WASM reliably triggers RangeError: Out of memory.
+// WebGL runs the model on the GPU and sidesteps that constraint entirely.
+function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) && /WebKit/.test(navigator.userAgent);
+}
 const MODEL_KEY   = 'arcface_v1';
 const MODEL_URL   = '/api/attendance/offline-model/';
 
@@ -122,10 +131,26 @@ export async function getSession(): Promise<unknown> {
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.proxy = false;
 
-  _session = await ort.InferenceSession.create(buffer, {
-    executionProviders: ['wasm'],
-    graphOptimizationLevel: 'all',
-  });
+  // iOS Safari's WebAssembly memory limit causes OOM with the SIMD WASM build.
+  // WebGL runs inference on the GPU and avoids that constraint entirely.
+  const executionProviders = isIOSDevice() ? ['webgl', 'wasm'] : ['wasm'];
+
+  try {
+    _session = await ort.InferenceSession.create(buffer, {
+      executionProviders,
+      graphOptimizationLevel: 'all',
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const lower = msg.toLowerCase();
+    if (lower.includes('out of memory') || lower.includes('rangeerror')) {
+      throw new Error('Not enough memory to load the offline model on this device. Please use online scanning.');
+    }
+    if (lower.includes('no available backend') || lower.includes('backend')) {
+      throw new Error('Offline face recognition is not supported on this browser or device. Please use online scanning.');
+    }
+    throw err;
+  }
 
   return _session;
 }

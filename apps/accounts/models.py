@@ -162,3 +162,25 @@ class AdminUser(AbstractBaseUser, PermissionsMixin):
         if self.role == RoleChoices.ADMIN:
             return self.admin_permissions.get(perm_key, False)
         return False
+
+
+class PushSubscription(models.Model):
+    """
+    Web Push subscription for an admin/protocol_admin user.
+    Stored per browser — one user may have multiple subscriptions across devices.
+    """
+    user = models.ForeignKey(
+        AdminUser,
+        on_delete=models.CASCADE,
+        related_name='push_subscriptions',
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh   = models.TextField()
+    auth     = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'push_subscriptions'
+
+    def __str__(self):
+        return f'PushSubscription({self.user.full_name}, {self.endpoint[:60]}…)'

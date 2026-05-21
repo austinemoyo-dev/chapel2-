@@ -9,6 +9,37 @@ from django.db import models
 from django.conf import settings
 
 
+class ManualModeConfig(models.Model):
+    """
+    Singleton that controls whether protocol members can mark attendance manually
+    (without face recognition). Admin turns it on/off and selects which protocol
+    members are allowed to use it.
+    """
+    is_enabled = models.BooleanField(default=False)
+    allowed_members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='manual_mode_grants',
+        help_text='Protocol members who may use manual attendance when mode is on',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='manual_mode_updates',
+    )
+
+    class Meta:
+        db_table = 'manual_mode_config'
+
+    @classmethod
+    def get(cls) -> 'ManualModeConfig':
+        obj, _ = cls.objects.get_or_create(id=1)
+        return obj
+
+
 class BackdateTypeChoices(models.TextChoices):
     VALID = 'valid', 'Valid'        # Counts toward attendance percentage
     EXCUSED = 'excused', 'Excused'  # Excluded from total required count

@@ -25,6 +25,9 @@ rapidfuzz>=3.0
 reportlab>=4.0
 openpyxl>=3.1
 
+# Web Push notifications (VAPID)
+pywebpush>=2.0
+
 # Runtime utilities
 python-decouple>=3.8
 gunicorn>=21.2

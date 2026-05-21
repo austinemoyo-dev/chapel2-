@@ -9,6 +9,7 @@ import {
   type AdminPermission,
 } from '@/lib/utils/constants';
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus';
+import { subscribeToPush } from '@/lib/notifications';
 
 /* ─── Nav icon map using proper SVGs ─── */
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -88,6 +89,12 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
             d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/>
     </svg>
   ),
+  manual: (
+    <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}
+            d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59"/>
+    </svg>
+  ),
   accounts: (
     <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6}
@@ -118,6 +125,7 @@ const navItems: {
   { href: '/admin/users',      label: 'Users',      iconKey: 'users',      superadminOnly: true },
   { href: '/admin/duplicates', label: 'Duplicates', iconKey: 'duplicates', superadminOnly: true },
   { href: '/admin/devices',          label: 'Devices',         iconKey: 'devices',   superadminOnly: true },
+  { href: '/admin/manual-mode',      label: 'Manual Mode',     iconKey: 'manual',    superadminOnly: true },
   { href: '/admin/student-accounts', label: 'Portal Accounts', iconKey: 'accounts',  superadminOnly: true },
   { href: '/admin/security',         label: 'Security',        iconKey: 'security',  superadminOnly: true },
   { href: '/admin/reports',    label: 'Reports',    iconKey: 'reports',    permission: ADMIN_PERMISSIONS.VIEW_REPORTS },
@@ -160,6 +168,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/admin/login');
     }
   }, [isLoading, hasRole, router]);
+
+  // Subscribe to Web Push once the admin is authenticated.
+  // Silently no-ops if the browser doesn't support push or the user declines.
+  useEffect(() => {
+    if (!isLoading && user) {
+      subscribeToPush().catch(() => {});
+    }
+  }, [isLoading, user]);
 
   if (isLoading || !user) return null;
 

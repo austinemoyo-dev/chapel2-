@@ -154,5 +154,39 @@ export const attendanceService = {
       '/api/attendance/bulk-mark/',
       data,
     ),
+
+  // ── Manual Mode ──────────────────────────────────────────────────────────
+
+  /** GET /api/attendance/manual-mode/ — Admin: get current config */
+  getManualModeConfig: () =>
+    api.get<{
+      is_enabled: boolean;
+      allowed_member_ids: string[];
+      protocol_members: { id: string; full_name: string; email: string; device_bound: boolean; allowed: boolean }[];
+    }>('/api/attendance/manual-mode/'),
+
+  /** PATCH /api/attendance/manual-mode/ — Admin: update config */
+  updateManualModeConfig: (data: { is_enabled?: boolean; allowed_member_ids?: string[] }) =>
+    api.patch<{ message: string; is_enabled: boolean }>('/api/attendance/manual-mode/', data),
+
+  /** GET /api/attendance/manual-mode/status/ — Protocol member: check own access */
+  getManualModeStatus: () =>
+    api.get<{ enabled: boolean }>('/api/attendance/manual-mode/status/'),
+
+  /** GET /api/attendance/students/?q=...&service_id=... — Student search for manual mode */
+  searchStudents: (q: string, serviceId?: string) => {
+    const params = new URLSearchParams({ q });
+    if (serviceId) params.set('service_id', serviceId);
+    return api.get<{ id: string; full_name: string; matric_number: string; service_group: string; profile_photo: string | null }[]>(
+      `/api/attendance/students/?${params.toString()}`,
+    );
+  },
+
+  /** POST /api/attendance/protocol-manual-sign-in/ — Protocol member: manual sign-in */
+  protocolManualSignIn: (data: { service_id: string; student_id: string; device_id: string; gps_lat: number; gps_lng: number }) =>
+    api.post<{ message: string; record_id: string; student_id: string; student_name: string; signed_in_at: string }>(
+      '/api/attendance/protocol-manual-sign-in/',
+      data,
+    ),
 };
 

@@ -103,6 +103,15 @@ export default function ScanPage() {
   const [servicesLoaded, setServicesLoaded] = useState(false);
   const [embeddingLoading, setEmbeddingLoading] = useState(false);
 
+  // Manual mode — shown only when admin has enabled it for this member
+  const [manualEnabled, setManualEnabled]       = useState(false);
+  const [manualMode, setManualMode]             = useState(false);
+  const [manualQuery, setManualQuery]           = useState('');
+  const [manualResults, setManualResults]       = useState<{ id: string; full_name: string; matric_number: string; service_group: string; profile_photo: string | null }[]>([]);
+  const [manualSearching, setManualSearching]   = useState(false);
+  const [selectedStudent, setSelectedStudent]   = useState<{ id: string; full_name: string; matric_number: string } | null>(null);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
@@ -223,11 +232,14 @@ export default function ScanPage() {
       downloadAndCacheModel((pct) => {
         if (!cancelled) setModelDownloadPct(pct);
       })
-        .then(() => {
+        .then(async () => {
+          // Re-verify the session can actually be created — on iOS the WASM
+          // variant may OOM even though the model downloaded successfully.
+          const ready = !cancelled && await isModelReady();
           if (!cancelled) {
-            setOfflineReady(true);
+            setOfflineReady(ready);
             setModelDownloadPct(100);
-            attendanceService.reportModelReady().catch(() => {});
+            if (ready) attendanceService.reportModelReady().catch(() => {});
           }
         })
         .catch((err) => {
@@ -249,6 +261,28 @@ export default function ScanPage() {
     }
     return undefined;
   }, [isOnline, pendingSync, syncing, handleSync]);
+
+  // Check whether admin has enabled manual mode for this protocol member.
+  useEffect(() => {
+    attendanceService.getManualModeStatus()
+      .then(({ enabled }) => setManualEnabled(enabled))
+      .catch(() => {});
+  }, []);
+
+  // Debounced student search while in manual mode.
+  useEffect(() => {
+    if (!manualMode || manualQuery.trim().length < 2) { setManualResults([]); return; }
+    const t = setTimeout(async () => {
+      setManualSearching(true);
+      try {
+        const results = await attendanceService.searchStudents(manualQuery, selectedService?.id);
+        setManualResults(results);
+      } catch { /* ignore */ } finally {
+        setManualSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [manualQuery, manualMode, selectedService]);
 
   // Silently refresh embeddings when the device comes back online.
   // Tracks the previous isOnline value so we only act on the false→true edge,
@@ -593,6 +627,28 @@ export default function ScanPage() {
   const gpsReady = geo.latitude !== null && geo.longitude !== null && !geo.permissionDenied;
   const canScan = isActive && gpsReady && !!deviceId && !!selectedService && !scanning && (isOnline || offlineReady);
 
+  const handleManualSignIn = async () => {
+    if (!selectedStudent || !selectedService || !deviceId) return;
+    setManualSubmitting(true);
+    try {
+      const res = await attendanceService.protocolManualSignIn({
+        service_id: selectedService.id,
+        student_id: selectedStudent.id,
+        device_id: deviceId,
+        gps_lat: geo.latitude ?? 0,
+        gps_lng: geo.longitude ?? 0,
+      });
+      addToast(`Signed in ${res.student_name}`, 'success');
+      setSelectedStudent(null);
+      setManualQuery('');
+      setManualResults([]);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Manual sign-in failed', 'error');
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
   if (phase === 'select_service') {
     return (
       <div className="min-h-dvh flex flex-col p-6 animate-fade-in bg-background">
@@ -623,21 +679,116 @@ export default function ScanPage() {
         <div className="flex bg-surface-2 rounded-2xl p-1 mb-6 border border-border shadow-inner">
           <button
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              mode === 'sign_in' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
+              !manualMode && mode === 'sign_in' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
             }`}
-            onClick={() => setMode('sign_in')}
+            onClick={() => { setManualMode(false); setMode('sign_in'); }}
           >
             Sign In
           </button>
           <button
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
-              mode === 'sign_out' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
+              !manualMode && mode === 'sign_out' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-muted hover:text-foreground'
             }`}
-            onClick={() => setMode('sign_out')}
+            onClick={() => { setManualMode(false); setMode('sign_out'); }}
           >
             Sign Out
           </button>
+          {manualEnabled && (
+            <button
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${
+                manualMode ? 'bg-warning text-white shadow-sm' : 'text-muted hover:text-foreground'
+              }`}
+              onClick={() => { setManualMode(true); setSelectedStudent(null); setManualQuery(''); setManualResults([]); }}
+            >
+              Manual
+            </button>
+          )}
         </div>
+
+        {/* ── Manual mode panel ── */}
+        {manualMode && (
+          <div className="mb-6 space-y-3">
+            <p className="text-xs font-semibold text-warning uppercase tracking-widest">
+              Manual mode — face scan bypassed
+            </p>
+
+            {/* Student search */}
+            <div className="relative">
+              <input
+                type="text"
+                value={manualQuery}
+                onChange={(e) => { setManualQuery(e.target.value); setSelectedStudent(null); }}
+                placeholder="Search by name or matric number…"
+                className="w-full px-4 py-3 rounded-2xl bg-surface border border-border text-sm text-foreground
+                           placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              {manualSearching && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <svg className="w-4 h-4 animate-spin text-muted" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                </span>
+              )}
+            </div>
+
+            {/* Results */}
+            {manualResults.length > 0 && !selectedStudent && (
+              <div className="rounded-2xl border border-border bg-surface overflow-hidden divide-y divide-border max-h-64 overflow-y-auto">
+                {manualResults.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setSelectedStudent(s); setManualResults([]); setManualQuery(s.full_name); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors text-left"
+                  >
+                    {s.profile_photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.profile_photo} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <span className="w-9 h-9 rounded-xl bg-primary/20 text-primary text-xs font-bold flex items-center justify-center shrink-0">
+                        {s.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{s.full_name}</p>
+                      <p className="text-xs text-muted">{s.matric_number} · {s.service_group}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Confirm selected student */}
+            {selectedStudent && (
+              <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-muted mb-0.5">Marking attendance for</p>
+                  <p className="font-bold text-foreground">{selectedStudent.full_name}</p>
+                  <p className="text-xs text-muted">{selectedStudent.matric_number}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setSelectedStudent(null); setManualQuery(''); }}
+                    className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void handleManualSignIn()}
+                    disabled={manualSubmitting || !selectedService}
+                    className="flex-1 py-2.5 rounded-xl bg-warning text-white text-sm font-bold disabled:opacity-60 transition-opacity"
+                  >
+                    {manualSubmitting ? 'Marking…' : 'Confirm Sign In'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!selectedService && (
+              <p className="text-xs text-warning text-center">Select a service below first.</p>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3 mb-8">
           <div className="flex flex-col gap-1 p-4 rounded-3xl bg-surface border border-border shadow-sm relative overflow-hidden">
@@ -731,8 +882,8 @@ export default function ScanPage() {
 
   return (
     <div className="h-dvh flex flex-col relative bg-black overflow-hidden">
-      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-      <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" />
+      <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+      <canvas ref={overlayRef} className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'scaleX(-1)' }} />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Vignette — darkens edges, keeps face area bright */}
@@ -780,7 +931,7 @@ export default function ScanPage() {
 
       {/* ── Window closed banner ── */}
       {windowClosed && (
-        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
           <div className="bg-red-500/20 border border-red-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl text-center">
             <p className="text-red-300 font-bold text-sm">Attendance window has closed</p>
             <p className="text-white/50 text-xs mt-0.5">No more scans can be recorded for this service</p>
@@ -790,7 +941,7 @@ export default function ScanPage() {
 
       {/* ── Countdown timer ── */}
       {windowCountdown && !windowClosed && !embeddingLoading && (
-        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
           <div className="bg-black/40 border border-white/10 backdrop-blur-sm px-4 py-2 rounded-2xl flex items-center justify-between">
             <span className="text-white/60 text-xs font-medium">Window</span>
             <span className="text-white font-bold text-sm tabular-nums">{windowCountdown}</span>
@@ -800,7 +951,7 @@ export default function ScanPage() {
 
       {/* ── Model download warning banner ── */}
       {!embeddingLoading && modelDownloadPct !== null && modelDownloadPct < 100 && (
-        <div className="absolute top-20 inset-x-4 z-30 pointer-events-none">
+        <div className="absolute top-36 inset-x-4 z-30 pointer-events-none">
           <div className="bg-amber-500/20 border border-amber-500/40 backdrop-blur-sm px-4 py-3 rounded-2xl">
             <div className="flex items-center justify-between text-xs mb-2">
               <span className="font-bold text-amber-300">⚠️ Stay connected — downloading offline capability</span>

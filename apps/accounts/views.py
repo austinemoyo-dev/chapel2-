@@ -10,7 +10,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.db import transaction
 
-from .models import AdminUser, RoleChoices
+from .models import AdminUser, RoleChoices, PushSubscription
 from .serializers import (
     CustomTokenObtainPairSerializer,
     AdminUserSerializer,
@@ -30,13 +30,48 @@ logger = logging.getLogger(__name__)
 class LoginView(TokenObtainPairView):
     """
     POST /api/auth/login/
-    
+
     Authenticates an admin/protocol user and returns JWT access + refresh tokens.
     Token includes custom claims: role, full_name, email.
     No authentication required (public endpoint for login).
+
+    When a protocol member logs in, a push notification is sent to all admin
+    subscribers so admins can monitor login punctuality.
     """
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+
+        if response.status_code == 200:
+            # Identify the user who just logged in
+            email = request.data.get('email', '')
+            try:
+                user = AdminUser.objects.get(email=email)
+                if user.role == RoleChoices.PROTOCOL_MEMBER:
+                    import threading
+                    from django.utils import timezone
+
+                    now_str = timezone.localtime().strftime('%I:%M %p')
+                    threading.Thread(
+                        target=_send_login_push,
+                        args=(user.full_name, now_str),
+                        daemon=True,
+                    ).start()
+            except AdminUser.DoesNotExist:
+                pass
+
+        return response
+
+
+def _send_login_push(full_name: str, time_str: str) -> None:
+    from apps.attendance.push import send_push_to_admins
+    send_push_to_admins(
+        title='Protocol member logged in',
+        body=f'{full_name} logged in at {time_str}',
+        url='/admin/devices',
+    )
 
 
 class LogoutView(APIView):
@@ -196,3 +231,68 @@ class DeviceBindView(APIView):
             'protocol_member': str(member.id),
             'device_id': new_device_id,
         }, status=status.HTTP_200_OK)
+
+
+# =============================================================================
+# WEB PUSH SUBSCRIPTIONS
+# =============================================================================
+
+class VapidPublicKeyView(APIView):
+    """
+    GET /api/auth/push/vapid-key/
+    Returns the VAPID public key so the browser can subscribe to push.
+    Any authenticated user may call this.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.conf import settings
+        return Response({'public_key': settings.VAPID_PUBLIC_KEY})
+
+
+class PushSubscribeView(APIView):
+    """
+    POST /api/auth/push/subscribe/   — save a push subscription for the current user
+    DELETE /api/auth/push/subscribe/ — remove it (called on unsubscribe)
+
+    Only superadmin, admin, and protocol_admin users are subscribed —
+    protocol members are the ones *doing* the marking, not the ones being notified.
+    """
+    permission_classes = [IsAuthenticated]
+
+    NOTIFIABLE_ROLES = {
+        RoleChoices.SUPERADMIN,
+        RoleChoices.ADMIN,
+        RoleChoices.PROTOCOL_ADMIN,
+    }
+
+    def post(self, request):
+        if request.user.role not in self.NOTIFIABLE_ROLES:
+            return Response(
+                {'error': 'Push notifications are only available for admin roles.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        endpoint = request.data.get('endpoint', '').strip()
+        p256dh   = request.data.get('p256dh', '').strip()
+        auth     = request.data.get('auth', '').strip()
+
+        if not endpoint or not p256dh or not auth:
+            return Response(
+                {'error': 'endpoint, p256dh, and auth are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={'user': request.user, 'p256dh': p256dh, 'auth': auth},
+        )
+        return Response({'message': 'Subscribed.'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        endpoint = request.data.get('endpoint', '').strip()
+        if endpoint:
+            PushSubscription.objects.filter(
+                user=request.user, endpoint=endpoint
+            ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

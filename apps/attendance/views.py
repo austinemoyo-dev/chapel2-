@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import AttendanceRecord, BackdateTypeChoices
+from .models import AttendanceRecord, BackdateTypeChoices, ManualModeConfig
 from .serializers import (
     SignInSerializer,
     SignOutSerializer,
@@ -1272,4 +1272,227 @@ class BulkAttendanceView(APIView):
             'total_students': len(student_ids),
         })
 
+
+# =============================================================================
+# MANUAL MODE — Admin config + protocol member access
+# =============================================================================
+
+class ManualModeConfigView(APIView):
+    """
+    GET  /api/attendance/manual-mode/
+        Returns current config: is_enabled, allowed_member_ids, all protocol members.
+
+    PATCH /api/attendance/manual-mode/
+        Body: { "is_enabled": bool, "allowed_member_ids": ["uuid", ...] }
+        Admin or Superadmin only.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        from apps.accounts.models import AdminUser, RoleChoices
+        config = ManualModeConfig.get()
+
+        protocol_members = AdminUser.objects.filter(
+            role=RoleChoices.PROTOCOL_MEMBER,
+            is_active=True,
+        ).values('id', 'full_name', 'email', 'bound_device_id')
+
+        allowed_ids = set(config.allowed_members.values_list('id', flat=True))
+
+        return Response({
+            'is_enabled': config.is_enabled,
+            'allowed_member_ids': [str(i) for i in allowed_ids],
+            'protocol_members': [
+                {
+                    'id': str(m['id']),
+                    'full_name': m['full_name'],
+                    'email': m['email'],
+                    'device_bound': bool(m['bound_device_id']),
+                    'allowed': m['id'] in allowed_ids,
+                }
+                for m in protocol_members
+            ],
+        })
+
+    def patch(self, request):
+        config = ManualModeConfig.get()
+
+        if 'is_enabled' in request.data:
+            config.is_enabled = bool(request.data['is_enabled'])
+
+        if 'allowed_member_ids' in request.data:
+            from apps.accounts.models import AdminUser, RoleChoices
+            ids = request.data['allowed_member_ids']
+            members = AdminUser.objects.filter(
+                id__in=ids,
+                role=RoleChoices.PROTOCOL_MEMBER,
+            )
+            config.allowed_members.set(members)
+
+        config.updated_by = request.user
+        config.save()
+
+        log_action(
+            actor=request.user,
+            action_type='MANUAL_MODE_UPDATED',
+            target_type='ManualModeConfig',
+            target_id=1,
+            new_value={
+                'is_enabled': config.is_enabled,
+                'allowed_member_ids': request.data.get('allowed_member_ids', []),
+            },
+        )
+
+        return Response({'message': 'Manual mode updated.', 'is_enabled': config.is_enabled})
+
+
+class ManualModeStatusView(APIView):
+    """
+    GET /api/attendance/manual-mode/status/
+    Protocol member calls this to know whether they have manual mode access.
+    Returns: { "enabled": bool }
+    """
+    permission_classes = [IsProtocolMember]
+
+    def get(self, request):
+        config = ManualModeConfig.get()
+        enabled = (
+            config.is_enabled
+            and config.allowed_members.filter(id=request.user.id).exists()
+        )
+        return Response({'enabled': enabled})
+
+
+class ProtocolManualSignInView(APIView):
+    """
+    POST /api/attendance/protocol-manual-sign-in/
+    Protocol member manually marks a student when manual mode is active.
+    Bypasses face recognition. Still records GPS and device_id for audit.
+    Body: { service_id, student_id, device_id, gps_lat, gps_lng }
+    """
+    permission_classes = [IsProtocolMember]
+
+    @transaction.atomic
+    def post(self, request):
+        config = ManualModeConfig.get()
+        if not config.is_enabled or not config.allowed_members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'Manual mode is not enabled for your account.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        service_id = request.data.get('service_id')
+        student_id = request.data.get('student_id')
+        device_id  = request.data.get('device_id', 'MANUAL_PROTOCOL')
+        gps_lat    = request.data.get('gps_lat', 0)
+        gps_lng    = request.data.get('gps_lng', 0)
+
+        if not service_id or not student_id:
+            return Response(
+                {'error': 'service_id and student_id are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            service = Service.objects.get(id=service_id)
+        except Service.DoesNotExist:
+            return Response({'error': 'Service not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if service.is_cancelled:
+            return Response(
+                {'error': 'Cannot mark attendance for a cancelled service.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            student = Student.objects.get(id=student_id, is_active=True)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found or inactive.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            record = AttendanceRecord.objects.create(
+                student=student,
+                service=service,
+                protocol_member=request.user,
+                device_id=f'MANUAL:{device_id}',
+                gps_lat=gps_lat,
+                gps_lng=gps_lng,
+                signed_in_at=timezone.now(),
+                is_valid=True,
+                is_offline_record=False,
+            )
+        except IntegrityError:
+            return Response(
+                {'error': 'Already marked for this service.', 'student_name': student.full_name},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        log_action(
+            actor=request.user,
+            action_type='ATTENDANCE_MANUAL_SIGN_IN',
+            target_type='AttendanceRecord',
+            target_id=record.id,
+            new_value={
+                'student_id': str(student.id),
+                'student_name': student.full_name,
+                'service_id': str(service.id),
+                'mode': 'protocol_manual',
+            },
+            reason_note='Manual mode activated by admin',
+        )
+
+        return Response({
+            'message': f'Signed in {student.full_name}.',
+            'record_id': str(record.id),
+            'student_id': str(student.id),
+            'student_name': student.full_name,
+            'signed_in_at': record.signed_in_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+
+class StudentSearchView(APIView):
+    """
+    GET /api/attendance/students/?q=<name or matric>&service_id=<uuid>
+    Lightweight student search for protocol members using manual mode.
+    Returns id, full_name, matric_number, service_group, profile_photo.
+    Filters to the same service_group as the selected service when provided.
+    """
+    permission_classes = [IsProtocolMember]
+
+    def get(self, request):
+        q          = request.query_params.get('q', '').strip()
+        service_id = request.query_params.get('service_id', '').strip()
+
+        qs = Student.objects.filter(is_active=True)
+
+        if service_id:
+            try:
+                service = Service.objects.get(id=service_id)
+                if service.service_group != 'all':
+                    qs = qs.filter(service_group=service.service_group)
+            except Service.DoesNotExist:
+                pass
+
+        if q:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(full_name__icontains=q) | Q(matric_number__icontains=q)
+            )
+
+        students = qs.values(
+            'id', 'full_name', 'matric_number', 'service_group', 'profile_photo'
+        )[:30]
+
+        results = []
+        for s in students:
+            photo = s['profile_photo']
+            results.append({
+                'id': str(s['id']),
+                'full_name': s['full_name'],
+                'matric_number': s['matric_number'],
+                'service_group': s['service_group'],
+                'profile_photo': request.build_absolute_uri(f'/media/{photo}') if photo else None,
+            })
+
+        return Response(results)
 

@@ -20,6 +20,10 @@ from .views import (
     PhotoAuditView,
     SuspiciousPatternsView,
     BriefingView,
+    ManualModeConfigView,
+    ManualModeStatusView,
+    ProtocolManualSignInView,
+    StudentSearchView,
 )
 
 urlpatterns = [
@@ -29,6 +33,9 @@ urlpatterns = [
     path('sync/', OfflineSyncView.as_view(), name='attendance-sync'),
     path('embeddings/<uuid:service_id>/', EmbeddingsDownloadView.as_view(), name='attendance-embeddings'),
     path('offline-model/', ArcFaceModelView.as_view(), name='attendance-offline-model'),
+    path('manual-mode/status/', ManualModeStatusView.as_view(), name='attendance-manual-mode-status'),
+    path('protocol-manual-sign-in/', ProtocolManualSignInView.as_view(), name='attendance-protocol-manual-sign-in'),
+    path('students/', StudentSearchView.as_view(), name='attendance-student-search'),
 
     # Admin endpoints
     path('service/<uuid:service_id>/', AttendanceServiceListView.as_view(), name='attendance-service-list'),
@@ -43,6 +50,7 @@ urlpatterns = [
     path('<uuid:id>/photo/', PhotoAuditView.as_view(), name='attendance-photo-audit'),
     path('suspicious/', SuspiciousPatternsView.as_view(), name='attendance-suspicious'),
     path('briefing/', BriefingView.as_view(), name='attendance-briefing'),
+    path('manual-mode/', ManualModeConfigView.as_view(), name='attendance-manual-mode'),
 ]
 
 

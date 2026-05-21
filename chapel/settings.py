@@ -285,6 +285,17 @@ _log_dir = Path('/var/log/chapel')
 if not DEBUG and _log_dir.exists():
     _log_handlers.append('file')
 
+# =============================================================================
+# WEB PUSH (VAPID)
+# Generate keys once with:
+#   python -c "from py_vapid import Vapid; v = Vapid(); v.generate_keys(); print('Private:', v.private_pem().decode()); print('Public:', v.public_key.public_bytes(__import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding','PublicFormat']).Encoding.X962, __import__('cryptography.hazmat.primitives.serialization', fromlist=['Encoding','PublicFormat']).PublicFormat.UncompressedPoint).hex())"
+# Or use: npx web-push generate-vapid-keys
+# Set VAPID_PRIVATE_KEY and VAPID_PUBLIC_KEY in your .env / docker-compose.yml
+# =============================================================================
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_PUBLIC_KEY  = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@chapel.local')
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

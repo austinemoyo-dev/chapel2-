@@ -73,3 +73,44 @@ async function syncAttendance() {
     client.postMessage({ type: 'SYNC_ATTENDANCE' });
   });
 }
+
+// Web Push — show notification when backend fires a push event
+self.addEventListener('push', async (event) => {
+  let title = 'Chapel Attendance';
+  let body  = 'A protocol member has marked attendance.';
+  let url   = '/admin/attendance';
+
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      title = data.title || title;
+      body  = data.body  || body;
+      url   = data.url   || url;
+    } catch (_) { /* malformed payload — use defaults */ }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:  '/icons/icon-194.png',
+      badge: '/icons/icon-194.png',
+      data:  { url },
+      tag:   'attendance',        // collapse rapid-fire notifications into one
+      renotify: true,
+    })
+  );
+});
+
+// Open / focus the admin page when the notification is clicked
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/admin/attendance';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(target) && 'focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
+  );
+});

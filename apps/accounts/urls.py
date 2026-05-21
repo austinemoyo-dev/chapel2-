@@ -9,6 +9,8 @@ from .views import (
     AdminUserListCreateView,
     AdminUserDetailView,
     DeviceBindView,
+    VapidPublicKeyView,
+    PushSubscribeView,
 )
 
 urlpatterns = [
@@ -23,4 +25,8 @@ urlpatterns = [
 
     # Device binding
     path('bind-device/', DeviceBindView.as_view(), name='auth-bind-device'),
+
+    # Web Push
+    path('push/vapid-key/', VapidPublicKeyView.as_view(), name='push-vapid-key'),
+    path('push/subscribe/', PushSubscribeView.as_view(), name='push-subscribe'),
 ]
