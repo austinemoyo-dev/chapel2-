@@ -21,6 +21,8 @@ export default function ReportsPage() {
   const [semesters, setSemesters] = useState<{ id: string; name: string }[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [studentDbSemester, setStudentDbSemester] = useState('');
+  const [exportingStudentDb, setExportingStudentDb] = useState(false);
 
   useEffect(() => {
     Promise.all([serviceService.listSemesters(), serviceService.listServices()])
@@ -62,6 +64,25 @@ export default function ReportsPage() {
     }
   }
 
+  async function handleExportStudentDb() {
+    setExportingStudentDb(true);
+    try {
+      const blob = await reportService.exportStudentsCSV(studentDbSemester || undefined);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const semesterLabel = semesters.find((s) => s.id === studentDbSemester)?.name;
+      a.download = `student_database${semesterLabel ? `_${semesterLabel.replace(/\s+/g, '_')}` : '_all'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast('Student database CSV exported', 'success');
+    } catch {
+      addToast('Export failed', 'error');
+    } finally {
+      setExportingStudentDb(false);
+    }
+  }
+
   const updateFilter = (key: keyof ReportFilters, value: string) => {
     setFilters((current) => {
       const next = { ...current, [key]: value || undefined };
@@ -73,14 +94,45 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Attendance Reports</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => void handleExport('pdf')} loading={exporting}>PDF</Button>
-          <Button variant="secondary" size="sm" onClick={() => void handleExport('excel')} loading={exporting}>Excel</Button>
-        </div>
+    <div className="space-y-10 animate-fade-in">
+      <div>
+        <h1 className="text-2xl font-bold">Reports</h1>
       </div>
+
+      {/* ── Student Database Section ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Student Database</h2>
+            <p className="text-sm text-muted">Export full student details — Matric, Name, Phone, Dept, Level.</p>
+          </div>
+        </div>
+
+        <Card variant="glass" className="flex flex-col md:flex-row gap-4 md:items-end">
+          <div className="flex-1 max-w-xs">
+            <Select
+              id="student-db-semester"
+              label="Semester"
+              options={[{ value: '', label: 'All semesters' }, ...semesters.map((s) => ({ value: s.id, label: s.name }))]}
+              value={studentDbSemester}
+              onChange={(e) => setStudentDbSemester(e.target.value)}
+            />
+          </div>
+          <Button variant="primary" size="sm" onClick={() => void handleExportStudentDb()} loading={exportingStudentDb}>
+            Export CSV
+          </Button>
+        </Card>
+      </section>
+
+      {/* ── Attendance Reports Section ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Attendance Reports</h2>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => void handleExport('pdf')} loading={exporting}>PDF</Button>
+            <Button variant="secondary" size="sm" onClick={() => void handleExport('excel')} loading={exporting}>Excel</Button>
+          </div>
+        </div>
 
       <Card variant="glass" className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
         <Select
@@ -181,6 +233,7 @@ export default function ReportsPage() {
       ) : (
         <p className="text-center py-10 text-muted">No data available</p>
       )}
+      </section>
     </div>
   );
 }

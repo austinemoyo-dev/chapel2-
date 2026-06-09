@@ -4,6 +4,7 @@ Reports Views — Filtered attendance reports with PDF and Excel export.
 Reports are generated from live database queries — never cached.
 Filters: week, service, semester.
 """
+import csv
 import io
 import logging
 from datetime import datetime, timedelta
@@ -89,6 +90,51 @@ class AttendanceReportView(APIView):
             'report': report,
             'generated_at': timezone.now().isoformat(),
         })
+
+
+class ExportStudentsCSVView(APIView):
+    """
+    GET /api/reports/export/students-csv/
+
+    Export the full student database as CSV — Matric, Name, Phone, Dept, Level.
+    Includes every student, not filtered by service/group/attendance.
+
+    Query params:
+    - semester_id: UUID (optional) — restrict to a single semester.
+                   If omitted, exports students across all semesters.
+    """
+    permission_classes = [IsAdminOrAbove]
+
+    def get(self, request):
+        students_qs = Student.objects.all().select_related('semester').order_by('full_name')
+
+        semester_id = request.query_params.get('semester_id')
+        if semester_id:
+            try:
+                semester = Semester.objects.get(id=semester_id)
+            except Semester.DoesNotExist:
+                return Response({'error': 'Semester not found.'}, status=404)
+            students_qs = students_qs.filter(semester=semester)
+            filename = f'student_database_{semester.name.replace(" ", "_")}.csv'
+        else:
+            filename = 'student_database_all.csv'
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(['Matric', 'Name', 'Phone', 'Dept', 'Level'])
+
+        for student in students_qs:
+            writer.writerow([
+                student.matric_number or student.system_id,
+                student.full_name,
+                student.phone_number,
+                student.department,
+                student.level,
+            ])
+
+        return response
 
 
 class ExportPDFView(APIView):

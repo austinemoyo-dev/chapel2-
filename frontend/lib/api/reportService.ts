@@ -68,6 +68,11 @@ export const reportService = {
     return api.download(`/api/reports/export/excel/${qs ? `?${qs}` : ''}`);
   },
 
+  exportStudentsCSV: (semesterId?: string) => {
+    const qs = semesterId ? `?semester_id=${semesterId}` : '';
+    return api.download(`/api/reports/export/students-csv/${qs}`);
+  },
+
   getDashboardStats: () =>
     api.get<DashboardStats>('/api/reports/dashboard-stats/'),
 
