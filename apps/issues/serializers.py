@@ -1,58 +1,86 @@
 """
 Issue Report Serializers — split by audience.
 
-Portal serializer only exposes what the student should see (their own
-description/status/reply). Admin serializers expose the full triage
-picture, including the AI/diagnostic internals used to drive the inbox UI.
+Portal serializers only expose what the student should see (the
+conversation itself). Admin serializers expose the full triage picture,
+including the AI/diagnostic internals used to drive the inbox UI.
 """
 from rest_framework import serializers
 
 from apps.attendance.models import AttendanceRecord
 from apps.services.models import Service
 
-from .models import IssueReport
+from .models import IssueReport, IssueMessage
 
 
-class IssueReportPortalSerializer(serializers.ModelSerializer):
+class IssueMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IssueMessage
+        fields = ['id', 'sender', 'text', 'attachment', 'created_at']
+        read_only_fields = fields
+
+
+class IssueReportPortalListSerializer(serializers.ModelSerializer):
+    ticket_code = serializers.ReadOnlyField()
+    last_message = serializers.SerializerMethodField()
+
     class Meta:
         model = IssueReport
-        fields = [
-            'id', 'description', 'student_followup', 'category', 'status',
-            'admin_reply', 'created_at', 'updated_at',
-        ]
+        fields = ['id', 'ticket_code', 'category', 'status', 'last_message', 'created_at', 'updated_at']
+        read_only_fields = fields
+
+    def get_last_message(self, obj):
+        last = obj.messages.order_by('-created_at').first()
+        return last.text if last else ''
+
+
+class IssueReportPortalDetailSerializer(serializers.ModelSerializer):
+    ticket_code = serializers.ReadOnlyField()
+    messages = IssueMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = IssueReport
+        fields = ['id', 'ticket_code', 'category', 'status', 'messages', 'created_at', 'updated_at']
         read_only_fields = fields
 
 
 class IssueReportAdminListSerializer(serializers.ModelSerializer):
+    ticket_code = serializers.ReadOnlyField()
     student_name = serializers.CharField(source='student.full_name', read_only=True)
     student_identifier = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
 
     class Meta:
         model = IssueReport
         fields = [
-            'id', 'student', 'student_name', 'student_identifier',
-            'description', 'category', 'status', 'severity',
+            'id', 'ticket_code', 'student', 'student_name', 'student_identifier',
+            'last_message', 'category', 'status', 'severity',
             'resolution_type', 'created_at', 'updated_at',
         ]
 
     def get_student_identifier(self, obj):
         return obj.student.matric_number or obj.student.system_id
 
+    def get_last_message(self, obj):
+        last = obj.messages.order_by('-created_at').first()
+        return last.text if last else ''
+
 
 class IssueReportAdminDetailSerializer(serializers.ModelSerializer):
+    ticket_code = serializers.ReadOnlyField()
     student_name = serializers.CharField(source='student.full_name', read_only=True)
     student_identifier = serializers.SerializerMethodField()
     resolved_by_name = serializers.SerializerMethodField()
     flagged_services_detail = serializers.SerializerMethodField()
+    messages = IssueMessageSerializer(many=True, read_only=True)
 
     class Meta:
         model = IssueReport
         fields = [
-            'id', 'student', 'student_name', 'student_identifier',
-            'description', 'student_followup', 'category', 'status', 'severity',
+            'id', 'ticket_code', 'student', 'student_name', 'student_identifier',
+            'messages', 'category', 'status', 'severity',
             'resolution_type', 'suggested_fix', 'flagged_services', 'flagged_services_detail',
-            'ai_summary', 'ai_draft_reply', 'admin_reply',
-            'resolved_by', 'resolved_by_name', 'resolved_at',
+            'ai_summary', 'resolved_by', 'resolved_by_name', 'resolved_at',
             'created_at', 'updated_at',
         ]
 
@@ -92,4 +120,3 @@ class IssueReportUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=IssueReport._meta.get_field('status').choices, required=False)
     severity = serializers.ChoiceField(choices=IssueReport._meta.get_field('severity').choices, required=False)
     category = serializers.ChoiceField(choices=IssueReport._meta.get_field('category').choices, required=False)
-    admin_reply = serializers.CharField(required=False, allow_blank=True)

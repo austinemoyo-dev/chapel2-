@@ -1,5 +1,5 @@
 """
-Admin Views — issue report inbox: list, triage detail, and resolve.
+Admin Views — issue report inbox: list, thread detail, reply, and resolve.
 
 No endpoint here writes to AttendanceRecord — that always goes through the
 existing AttendanceEditView/BackdateView (apps/attendance/views.py), so the
@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import IsAdminOrAbove
 from apps.audit.utils import log_action
 
-from .models import IssueReport, IssueStatusChoices, IssueSeverityChoices
+from .models import IssueReport, IssueMessage, IssueMessageSenderChoices, IssueStatusChoices, IssueSeverityChoices
 from .serializers import (
     IssueReportAdminListSerializer,
     IssueReportAdminDetailSerializer,
@@ -38,7 +38,8 @@ class IssueAdminListView(generics.ListAPIView):
     GET /api/admin/issues/
 
     Filterable by status/severity/category/search. Defaults to hiding
-    dismissed reports. Ordered by severity (urgent first), then newest.
+    dismissed reports. Ordered by severity (urgent first), then most
+    recently active.
     """
     serializer_class = IssueReportAdminListSerializer
     permission_classes = [IsAdminOrAbove]
@@ -62,7 +63,7 @@ class IssueAdminListView(generics.ListAPIView):
 
         search = self.request.query_params.get('search')
         if search:
-            qs = qs.filter(Q(student__full_name__icontains=search) | Q(description__icontains=search))
+            qs = qs.filter(Q(student__full_name__icontains=search) | Q(messages__text__icontains=search)).distinct()
 
         qs = qs.annotate(
             severity_rank=Case(
@@ -70,20 +71,20 @@ class IssueAdminListView(generics.ListAPIView):
                 default=4,
                 output_field=IntegerField(),
             )
-        ).order_by('severity_rank', '-created_at')
+        ).order_by('severity_rank', '-updated_at')
         return qs
 
 
 class IssueAdminDetailView(APIView):
     """
-    GET   /api/admin/issues/{id}/ — full triage detail
-    PATCH /api/admin/issues/{id}/ — update status/severity/category/admin_reply
+    GET   /api/admin/issues/{id}/ — full conversation + triage detail
+    PATCH /api/admin/issues/{id}/ — update status/severity/category
     """
     permission_classes = [IsAdminOrAbove]
 
     def get(self, request, id):
         issue = get_object_or_404(IssueReport.objects.select_related('student', 'resolved_by'), id=id)
-        return Response(IssueReportAdminDetailSerializer(issue).data)
+        return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)
 
     @transaction.atomic
     def patch(self, request, id):
@@ -92,14 +93,9 @@ class IssueAdminDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        previous_value = {
-            'status': issue.status,
-            'severity': issue.severity,
-            'category': issue.category,
-            'admin_reply': issue.admin_reply,
-        }
+        previous_value = {'status': issue.status, 'severity': issue.severity, 'category': issue.category}
 
-        for field in ('status', 'severity', 'category', 'admin_reply'):
+        for field in ('status', 'severity', 'category'):
             if field in data:
                 setattr(issue, field, data[field])
         issue.save()
@@ -112,20 +108,49 @@ class IssueAdminDetailView(APIView):
             previous_value=previous_value,
             new_value=data,
         )
-        return Response(IssueReportAdminDetailSerializer(issue).data)
+        return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)
+
+
+class IssueAdminMessageView(APIView):
+    """POST /api/admin/issues/{id}/messages/ — admin reply in the thread."""
+    permission_classes = [IsAdminOrAbove]
+
+    def post(self, request, id):
+        issue = get_object_or_404(IssueReport, id=id)
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            return Response({'error': 'Message text is required.'}, status=400)
+
+        IssueMessage.objects.create(
+            issue=issue,
+            sender=IssueMessageSenderChoices.ADMIN,
+            text=text,
+            admin=request.user,
+        )
+        if issue.status not in (IssueStatusChoices.RESOLVED, IssueStatusChoices.DISMISSED):
+            issue.status = IssueStatusChoices.IN_REVIEW
+            issue.save(update_fields=['status', 'updated_at'])
+
+        return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)
 
 
 class IssueAdminResolveView(APIView):
-    """POST /api/admin/issues/{id}/resolve/"""
+    """POST /api/admin/issues/{id}/resolve/ — optionally posts a closing message first."""
     permission_classes = [IsAdminOrAbove]
 
     @transaction.atomic
     def post(self, request, id):
         issue = get_object_or_404(IssueReport, id=id)
 
-        admin_reply = request.data.get('admin_reply')
-        if admin_reply:
-            issue.admin_reply = admin_reply
+        closing_message = (request.data.get('message') or '').strip()
+        if closing_message:
+            IssueMessage.objects.create(
+                issue=issue,
+                sender=IssueMessageSenderChoices.ADMIN,
+                text=closing_message,
+                admin=request.user,
+            )
+
         issue.status = IssueStatusChoices.RESOLVED
         issue.resolved_by = request.user
         issue.resolved_at = timezone.now()
@@ -136,6 +161,6 @@ class IssueAdminResolveView(APIView):
             action_type='ISSUE_RESOLVED',
             target_type='IssueReport',
             target_id=issue.id,
-            new_value={'admin_reply': issue.admin_reply},
+            new_value={'message': closing_message},
         )
-        return Response(IssueReportAdminDetailSerializer(issue).data)
+        return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)

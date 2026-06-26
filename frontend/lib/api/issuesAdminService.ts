@@ -1,21 +1,22 @@
 // ============================================================================
-// Issues Admin Service — triage inbox for student-submitted issue reports.
+// Issues Admin Service — triage inbox for student-submitted issue chats.
 // ============================================================================
 
 import api from './client';
-import type { IssueStatus, IssueCategory } from './issuesPortalService';
+import type { IssueStatus, IssueCategory, MessageSender, IssueMessage } from './issuesPortalService';
 
-export type { IssueStatus, IssueCategory };
+export type { IssueStatus, IssueCategory, MessageSender, IssueMessage };
 
 export type IssueSeverity = 'low' | 'medium' | 'high' | 'urgent';
 export type ResolutionType = 'none' | 'explained' | 'awaiting_proof' | 'fix_needed';
 
 export interface IssueReportListItem {
   id: string;
+  ticket_code: string;
   student: string;
   student_name: string;
   student_identifier: string | null;
-  description: string;
+  last_message: string;
   category: IssueCategory;
   status: IssueStatus;
   severity: IssueSeverity;
@@ -43,13 +44,11 @@ export interface SuggestedFix {
 }
 
 export interface IssueReportDetail extends IssueReportListItem {
-  student_followup: string;
+  messages: IssueMessage[];
   suggested_fix: SuggestedFix | null;
   flagged_services: string[];
   flagged_services_detail: FlaggedServiceDetail[];
   ai_summary: string;
-  ai_draft_reply: string;
-  admin_reply: string;
   resolved_by: string | null;
   resolved_by_name: string | null;
   resolved_at: string | null;
@@ -59,7 +58,6 @@ export interface IssueUpdateRequest {
   status?: IssueStatus;
   severity?: IssueSeverity;
   category?: IssueCategory;
-  admin_reply?: string;
 }
 
 export const issuesAdminService = {
@@ -73,6 +71,9 @@ export const issuesAdminService = {
   update: (id: string, data: IssueUpdateRequest) =>
     api.patch<IssueReportDetail>(`/api/admin/issues/${id}/`, data),
 
-  resolve: (id: string, adminReply?: string) =>
-    api.post<IssueReportDetail>(`/api/admin/issues/${id}/resolve/`, { admin_reply: adminReply }),
+  sendMessage: (id: string, text: string) =>
+    api.post<IssueReportDetail>(`/api/admin/issues/${id}/messages/`, { text }),
+
+  resolve: (id: string, message?: string) =>
+    api.post<IssueReportDetail>(`/api/admin/issues/${id}/resolve/`, { message }),
 };

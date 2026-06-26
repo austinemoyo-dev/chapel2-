@@ -1,20 +1,23 @@
 """
-AI-assisted triage for IssueReport.
+Chat-turn handling for IssueReport conversations.
 
-Called synchronously from the portal view (create/respond) so the student
-sees the outcome immediately instead of polling — the deterministic path
-(diagnostics.py, keyword fallback) is instant either way, and even the AI
-calls are short enough that one extra second on submit is an acceptable
-trade for not needing a background job or a refresh.
+Called synchronously, right after a student message is saved, so the
+student sees the AI's reply in the same request — this is a real chat, not
+a fire-and-forget background job.
 
-Two jobs, kept separate on purpose:
+Three things this module decides, kept separate on purpose:
 
-1. Decide the *outcome* (auto-resolve vs. ask for proof vs. flag a fix vs.
-   route to the admin queue) — always deterministic (diagnostics.py) or a
-   plain keyword check, never the LLM's call.
-2. Phrase the reply / produce a summary for the admin queue — this is the
-   only part that uses Claude, and only when ANTHROPIC_API_KEY is set.
-   Everything still works, just less precisely, with no AI configured.
+1. Whether to *engage* at all — once an admin has replied, the AI stops
+   auto-responding; once a closed ticket gets a new message, it's reopened
+   for a human, not re-triaged.
+2. The attendance-visibility outcome (auto-resolve / ask for proof / escalate)
+   — always deterministic (diagnostics.py), never the LLM's call. This is
+   what makes the proof-gate against "free attendance" claims reliable even
+   when no AI is configured.
+3. Everything else — a bounded reply-or-escalate chat loop using Claude,
+   only when ANTHROPIC_API_KEY is set. Without it, general complaints can't
+   hold a conversation, so they escalate to a ticket immediately instead of
+   leaving the student with no response.
 """
 import json
 import logging
@@ -30,6 +33,7 @@ from .models import (
     IssueCategoryChoices,
     IssueSeverityChoices,
     IssueStatusChoices,
+    IssueMessageSenderChoices,
     ResolutionTypeChoices,
 )
 
@@ -64,24 +68,43 @@ CLASSIFY_TOOL = {
     },
 }
 
-GENERAL_TOOL = {
-    'name': 'triage_complaint',
-    'description': 'Summarize a student complaint for an admin and draft a reply.',
+RESPOND_TOOL = {
+    'name': 'respond_to_student',
+    'description': (
+        "Respond to the student in an ongoing support chat, or escalate to a "
+        "human admin if you can't resolve it yourself."
+    ),
     'input_schema': {
         'type': 'object',
         'properties': {
+            'action': {'type': 'string', 'enum': ['reply', 'escalate']},
+            'message': {'type': 'string', 'description': 'What to say to the student. Always include this.'},
             'category': {'type': 'string', 'enum': [c.value for c in IssueCategoryChoices]},
             'severity': {'type': 'string', 'enum': [s.value for s in IssueSeverityChoices]},
-            'summary': {'type': 'string', 'description': 'One or two sentences for the admin.'},
-            'draft_reply': {'type': 'string', 'description': 'A short, warm reply to the student.'},
+            'summary': {'type': 'string', 'description': 'One or two sentences for the admin — only needed when escalating.'},
         },
-        'required': ['category', 'severity', 'summary', 'draft_reply'],
+        'required': ['action', 'message', 'category', 'severity'],
     },
 }
 
+GENERAL_CHAT_SYSTEM = (
+    "You are a support chat assistant for a church attendance tracking app. "
+    "A student is messaging you about something other than their attendance "
+    "record showing wrong or missing (that case is handled elsewhere, "
+    "deterministically). Try to help directly only from general knowledge of "
+    "how an app like this works. Never invent specifics about this student's "
+    "account, device, or data — you have none. If resolving this needs someone "
+    "to actually look at their account or device, or you're not confident, set "
+    "action to 'escalate' rather than guessing. Keep replies short and warm."
+)
 
-def run_triage(issue_id):
-    """First pass — runs once, right after the student submits."""
+
+def handle_student_message(issue_id):
+    """
+    Entry point — call this right after saving the student's IssueMessage.
+    Decides and posts the next turn (AI reply, proof request, escalation,
+    or silent hand-off if a human admin already has the thread).
+    """
     from .models import IssueReport
 
     try:
@@ -90,98 +113,132 @@ def run_triage(issue_id):
         return
 
     try:
-        services = recent_services_for(issue.student)
-        classification = _classify(issue.description, services)
+        if issue.messages.filter(sender=IssueMessageSenderChoices.ADMIN).exists():
+            # A human already took this over — don't auto-reply, just flag it.
+            send_push_to_admins(
+                'New reply',
+                f'{issue.student.full_name} replied on ticket {issue.ticket_code}.',
+            )
+            return
 
-        if classification['category'] == IssueCategoryChoices.WRONG_STATUS:
-            _resolve_attendance_complaint(issue, services, set(classification['service_ids']))
-        else:
+        if issue.status in (IssueStatusChoices.RESOLVED, IssueStatusChoices.AUTO_RESOLVED, IssueStatusChoices.DISMISSED):
+            issue.status = IssueStatusChoices.IN_REVIEW
+            issue.resolved_at = None
+            issue.resolved_by = None
+            issue.save()
+            _send_ai_message(issue, "Got it — I've reopened this and flagged it for an admin to take another look.")
+            send_push_to_admins('Issue reopened', f'{issue.student.full_name} reopened ticket {issue.ticket_code}.')
+            return
+
+        is_first_message = issue.messages.filter(sender=IssueMessageSenderChoices.STUDENT).count() <= 1
+
+        if is_first_message:
+            latest = issue.messages.filter(sender=IssueMessageSenderChoices.STUDENT).latest('created_at')
+            services = recent_services_for(issue.student)
+            classification = _classify(latest.text, services)
             issue.category = classification['category']
-            _triage_general(issue, services)
+            if classification['category'] == IssueCategoryChoices.WRONG_STATUS:
+                _advance_attendance_flow(issue, services, set(classification['service_ids']))
+            else:
+                _advance_general_flow(issue)
+        elif issue.category == IssueCategoryChoices.WRONG_STATUS:
+            services = list(Service.objects.filter(id__in=issue.flagged_services))
+            _advance_attendance_flow(issue, services, set(issue.flagged_services))
+        else:
+            _advance_general_flow(issue)
 
         issue.save()
-        _notify_admins(issue)
     except Exception:
-        logger.exception('Issue triage failed for %s', issue_id)
+        logger.exception('Issue chat turn failed for %s', issue_id)
 
 
-def run_followup(issue_id):
-    """
-    Re-evaluation after the student adds proof/justification via the
-    respond endpoint. Re-checks the same services already flagged on the
-    first pass — no re-classification, since we already know this is an
-    attendance complaint and which service(s) it's about.
-    """
-    from .models import IssueReport
-
-    try:
-        issue = IssueReport.objects.select_related('student').get(id=issue_id)
-    except IssueReport.DoesNotExist:
-        return
-
-    try:
-        services = list(Service.objects.filter(id__in=issue.flagged_services))
-        candidate_ids = set(issue.flagged_services)
-        _resolve_attendance_complaint(issue, services, candidate_ids)
-        issue.save()
-        _notify_admins(issue)
-    except Exception:
-        logger.exception('Issue follow-up triage failed for %s', issue_id)
-
-
-def _notify_admins(issue):
-    if issue.severity in (IssueSeverityChoices.HIGH, IssueSeverityChoices.URGENT):
-        title = (
-            'New attendance complaint'
-            if issue.category == IssueCategoryChoices.WRONG_STATUS
-            else 'New urgent complaint'
-        )
-        send_push_to_admins(title, f'{issue.student.full_name}: {issue.description[:120]}')
-    elif issue.status == IssueStatusChoices.AUTO_RESOLVED:
-        send_push_to_admins(
-            'Issue auto-resolved',
-            f'{issue.student.full_name}: {issue.ai_summary[:120] or issue.description[:120]}',
-        )
-
-
-def _resolve_attendance_complaint(issue, services, candidate_ids):
+def _advance_attendance_flow(issue, services, candidate_ids):
     candidates = [s for s in services if str(s.id) in candidate_ids] or services
     results = [diagnose_service(issue.student, s) for s in candidates]
     fix_needed = [r for r in results if r['resolution'] == ResolutionTypeChoices.FIX_NEEDED]
     relevant = fix_needed or results
     facts = ' '.join(r['fact'] for r in relevant)
 
-    issue.category = IssueCategoryChoices.WRONG_STATUS
     issue.flagged_services = [r['service_id'] for r in relevant]
     issue.ai_summary = facts
 
     needs_proof = [r for r in fix_needed if r['requires_proof']]
 
-    if needs_proof and not issue.student_followup:
-        # The one case ripe for abuse: "no record at all, window closed."
-        # Hold the suggested fix back until the student justifies it —
-        # this is the speed bump against free/late attendance claims.
-        issue.resolution_type = ResolutionTypeChoices.AWAITING_PROOF
-        issue.status = IssueStatusChoices.AWAITING_PROOF
-        issue.suggested_fix = None
-        reply = _proof_request_reply(needs_proof)
-        issue.ai_draft_reply = reply
-        issue.admin_reply = reply
+    if needs_proof:
+        if issue.resolution_type == ResolutionTypeChoices.AWAITING_PROOF:
+            # Already asked once — this message is the student's answer.
+            issue.resolution_type = ResolutionTypeChoices.FIX_NEEDED
+            issue.severity = IssueSeverityChoices.HIGH
+            issue.status = IssueStatusChoices.IN_REVIEW
+            issue.suggested_fix = needs_proof[0]['suggested_fix']
+            _send_ai_message(issue, _escalation_message(issue))
+            _notify_new_ticket(issue)
+        else:
+            # The one case ripe for abuse: "no record at all, window closed."
+            # Ask before suggesting any fix — the speed bump against
+            # free/late attendance claims.
+            issue.resolution_type = ResolutionTypeChoices.AWAITING_PROOF
+            issue.status = IssueStatusChoices.AWAITING_PROOF
+            _send_ai_message(issue, _proof_request_reply(needs_proof))
     elif fix_needed:
         issue.resolution_type = ResolutionTypeChoices.FIX_NEEDED
         issue.severity = IssueSeverityChoices.HIGH
         issue.status = IssueStatusChoices.IN_REVIEW
-        issue.suggested_fix = fix_needed[0]['suggested_fix']
-        if issue.student_followup:
-            issue.ai_summary = f'{facts} Student says: "{issue.student_followup}"'
-        issue.ai_draft_reply = _phrase_reply(issue.ai_summary, is_problem=True)
+        _send_ai_message(issue, _escalation_message(issue))
+        _notify_new_ticket(issue)
     else:
         issue.resolution_type = ResolutionTypeChoices.EXPLAINED
         issue.status = IssueStatusChoices.AUTO_RESOLVED
-        reply = _phrase_reply(facts, is_problem=False)
-        issue.ai_draft_reply = reply
-        issue.admin_reply = reply
         issue.resolved_at = timezone.now()
+        _send_ai_message(issue, _phrase_reply(facts, is_problem=False))
+        _notify_auto_resolved(issue)
+
+
+def _advance_general_flow(issue):
+    client = _get_client()
+    if client is None:
+        # Can't hold a conversation without AI — escalate immediately rather
+        # than leaving the student with no response at all.
+        issue.status = IssueStatusChoices.IN_REVIEW
+        _send_ai_message(issue, f"Thanks — I've created ticket {issue.ticket_code} for our admin team. They'll respond here.")
+        _notify_new_ticket(issue)
+        return
+
+    try:
+        message = client.messages.create(
+            model=MODEL,
+            max_tokens=400,
+            system=GENERAL_CHAT_SYSTEM,
+            messages=_build_history(issue),
+            tools=[RESPOND_TOOL],
+            tool_choice={'type': 'tool', 'name': 'respond_to_student'},
+        )
+        data = _tool_input(message)
+        if data.get('category') in IssueCategoryChoices.values:
+            issue.category = data['category']
+        if data.get('severity') in IssueSeverityChoices.values:
+            issue.severity = data['severity']
+
+        reply_text = data.get('message') or "Could you tell me a bit more about what's going on?"
+        if data.get('action') == 'escalate':
+            issue.status = IssueStatusChoices.IN_REVIEW
+            issue.ai_summary = data.get('summary', '')
+            _send_ai_message(issue, f'{reply_text} {_escalation_message(issue)}'.strip())
+            _notify_new_ticket(issue)
+        else:
+            _send_ai_message(issue, reply_text)
+    except Exception:
+        logger.exception('AI chat turn failed for issue %s — escalating instead', issue.id)
+        issue.status = IssueStatusChoices.IN_REVIEW
+        _send_ai_message(issue, f"I've created ticket {issue.ticket_code} for our admin team to review — they'll respond here.")
+        _notify_new_ticket(issue)
+
+
+def _escalation_message(issue):
+    return (
+        f"I've created ticket {issue.ticket_code} for our admin team to review — "
+        f"they'll respond right here once they've looked into it."
+    )
 
 
 def _proof_request_reply(needs_proof_results):
@@ -191,45 +248,47 @@ def _proof_request_reply(needs_proof_results):
         f"attendance window has already closed. Before this can be corrected, "
         f"please reply with more detail — were you there but had a scanning "
         f"issue, were you running late, or is there someone who can confirm "
-        f"you attended? Any detail helps us review this fairly."
+        f"you attended? You can also attach a photo as evidence. Any detail "
+        f"helps us review this fairly."
     )
 
 
-def _triage_general(issue, services):
-    client = _get_client()
-    if client is None:
-        return  # stays on model defaults — still lands in the admin queue
+def _build_history(issue):
+    """Map the message thread to Anthropic's alternating user/assistant format."""
+    turns = []
+    for msg in issue.messages.order_by('created_at'):
+        if not msg.text:
+            continue
+        if msg.sender == IssueMessageSenderChoices.AI:
+            role, content = 'assistant', msg.text
+        elif msg.sender == IssueMessageSenderChoices.ADMIN:
+            role, content = 'user', f'[Admin]: {msg.text}'
+        else:
+            role, content = 'user', msg.text
+        if turns and turns[-1]['role'] == role:
+            turns[-1]['content'] += '\n' + content
+        else:
+            turns.append({'role': role, 'content': content})
+    return turns
 
-    context_facts = [diagnose_service(issue.student, s)['fact'] for s in services[:5]]
-    try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=500,
-            system=(
-                "You triage complaints submitted to a church attendance system's "
-                "student support inbox. Summarize the complaint for an admin and "
-                "draft a short, warm reply. Use only the facts given — do not "
-                "invent anything about the cause."
-            ),
-            messages=[{
-                'role': 'user',
-                'content': (
-                    f'Complaint: "{issue.description}"\n\n'
-                    f"Student's recent attendance facts: {json.dumps(context_facts)}"
-                ),
-            }],
-            tools=[GENERAL_TOOL],
-            tool_choice={'type': 'tool', 'name': 'triage_complaint'},
-        )
-        data = _tool_input(message)
-        if data.get('category') in IssueCategoryChoices.values:
-            issue.category = data['category']
-        if data.get('severity') in IssueSeverityChoices.values:
-            issue.severity = data['severity']
-        issue.ai_summary = data.get('summary', '')
-        issue.ai_draft_reply = data.get('draft_reply', '')
-    except Exception:
-        logger.exception('AI general triage failed for issue %s', issue.id)
+
+def _send_ai_message(issue, text):
+    from .models import IssueMessage
+    IssueMessage.objects.create(issue=issue, sender=IssueMessageSenderChoices.AI, text=text)
+
+
+def _notify_new_ticket(issue):
+    send_push_to_admins(
+        f'New ticket {issue.ticket_code}',
+        f'{issue.student.full_name}: {issue.ai_summary[:120] if issue.ai_summary else "needs review"}',
+    )
+
+
+def _notify_auto_resolved(issue):
+    send_push_to_admins(
+        'Issue auto-resolved',
+        f'{issue.student.full_name}: {issue.ai_summary[:120]}',
+    )
 
 
 def _classify(description, services):
@@ -250,7 +309,7 @@ def _classify(description, services):
             max_tokens=400,
             system=(
                 "You triage complaints submitted to a church attendance system's "
-                "student support inbox. Classify the complaint and, only if it is "
+                "student support chat. Classify the complaint and, only if it is "
                 "about attendance showing wrong or missing, point to which of the "
                 "student's recent services (from the supplied list) it concerns."
             ),

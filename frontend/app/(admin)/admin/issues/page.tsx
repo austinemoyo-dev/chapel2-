@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   issuesAdminService,
   type IssueReportListItem,
@@ -90,9 +90,12 @@ export default function AdminIssuesPage() {
                 onClick={() => setSelectedId(issue.id)}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{issue.student_name}</p>
-                  <p className="text-xs text-muted truncate">{issue.description}</p>
-                  <p className="text-[10px] text-muted mt-0.5">{formatDate(issue.created_at)}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground truncate">{issue.student_name}</p>
+                    <span className="text-[10px] text-muted shrink-0">{issue.ticket_code}</span>
+                  </div>
+                  <p className="text-xs text-muted truncate">{issue.last_message}</p>
+                  <p className="text-[10px] text-muted mt-0.5">{formatDate(issue.updated_at)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {issue.resolution_type === 'fix_needed' && <Badge variant="warning" size="sm">Fix needed</Badge>}
@@ -106,47 +109,69 @@ export default function AdminIssuesPage() {
       </Card>
 
       {selectedId && (
-        <IssueDetailModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} />
+        <IssueThreadModal id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} />
       )}
     </div>
   );
 }
 
-function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const [detail, setDetail] = useState<IssueReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reply, setReply] = useState('');
   const [status, setStatus] = useState<IssueStatus>('open');
   const [severity, setSeverity] = useState<IssueSeverity>('medium');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const [messageDraft, setMessageDraft] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const [fixReason, setFixReason] = useState('');
   const [fixBackdateType, setFixBackdateType] = useState<'valid' | 'excused'>('valid');
   const [fixIsValid, setFixIsValid] = useState(true);
   const [applyingFix, setApplyingFix] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     issuesAdminService.get(id)
       .then(d => {
         setDetail(d);
-        setReply(d.admin_reply || d.ai_draft_reply || '');
         setStatus(d.status);
         setSeverity(d.severity);
         if (d.suggested_fix?.backdate_type) setFixBackdateType(d.suggested_fix.backdate_type);
         if (typeof d.suggested_fix?.is_valid === 'boolean') setFixIsValid(d.suggested_fix.is_valid);
-        setFixReason(d.ai_summary ? `Approved via issue report: ${d.ai_summary}`.slice(0, 500) : '');
+        setFixReason(d.ai_summary ? `Approved via ${d.ticket_code}: ${d.ai_summary}`.slice(0, 500) : '');
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleSave = async () => {
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [detail?.messages.length]);
+
+  const handleSendMessage = async () => {
+    if (!detail || messageDraft.trim().length < 1) return;
+    setSendingMessage(true);
+    setError('');
+    try {
+      const updated = await issuesAdminService.sendMessage(detail.id, messageDraft.trim());
+      setDetail(updated);
+      setStatus(updated.status);
+      setMessageDraft('');
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message || 'Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleSaveFields = async () => {
     if (!detail) return;
     setSaving(true);
     setError('');
     try {
-      await issuesAdminService.update(detail.id, { status, severity, admin_reply: reply });
+      await issuesAdminService.update(detail.id, { status, severity });
       onChanged();
       onClose();
     } catch (e) {
@@ -161,7 +186,7 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
     setSaving(true);
     setError('');
     try {
-      await issuesAdminService.resolve(detail.id, reply);
+      await issuesAdminService.resolve(detail.id, messageDraft.trim() || undefined);
       onChanged();
       onClose();
     } catch (e) {
@@ -194,7 +219,7 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
           reason_note: fixReason,
         });
       }
-      await issuesAdminService.resolve(detail.id, reply || 'This has been corrected — thanks for flagging it.');
+      await issuesAdminService.resolve(detail.id, "This has been corrected — thanks for flagging it.");
       onChanged();
       onClose();
     } catch (e) {
@@ -206,9 +231,12 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <Card variant="glass" className="w-full max-w-lg space-y-4 animate-slide-up max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-foreground">Issue Report</h3>
+      <Card variant="glass" className="w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-4 pb-0">
+          <div>
+            <h3 className="text-lg font-bold text-foreground">{detail?.student_name || 'Issue'}</h3>
+            {detail && <p className="text-xs text-muted">{detail.ticket_code} · {detail.student_identifier}</p>}
+          </div>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -217,28 +245,14 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
         </div>
 
         {loading ? (
-          <div className="h-40 rounded-xl bg-surface-2 animate-pulse" />
+          <div className="h-40 rounded-xl bg-surface-2 animate-pulse m-4" />
         ) : !detail ? (
-          <p className="text-sm text-danger">{error || 'Not found'}</p>
+          <p className="text-sm text-danger p-4">{error || 'Not found'}</p>
         ) : (
-          <>
-            <div className="p-3 rounded-xl bg-surface-2 text-sm space-y-1">
-              <p className="font-semibold text-foreground">
-                {detail.student_name} <span className="text-muted text-xs">({detail.student_identifier})</span>
-              </p>
-              <p className="text-foreground">{detail.description}</p>
-            </div>
-
-            {detail.student_followup && (
-              <div className="p-3 rounded-xl bg-surface-2 border border-border text-sm">
-                <p className="text-xs font-semibold text-muted mb-1">Student&apos;s response</p>
-                <p className="text-foreground">{detail.student_followup}</p>
-              </div>
-            )}
-
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {detail.ai_summary && (
               <div className="p-3 rounded-xl bg-primary-muted border border-primary/20 text-sm">
-                <p className="text-xs font-semibold text-primary mb-1">Summary</p>
+                <p className="text-xs font-semibold text-primary mb-1">AI Summary</p>
                 <p className="text-foreground">{detail.ai_summary}</p>
               </div>
             )}
@@ -308,6 +322,33 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
               </div>
             )}
 
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Conversation</p>
+              {detail.messages.map(msg => {
+                const isAdmin = msg.sender === 'admin';
+                const isAi = msg.sender === 'ai';
+                return (
+                  <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                      isAdmin ? 'bg-primary text-white'
+                      : isAi ? 'bg-surface-2 text-foreground'
+                      : 'bg-surface-3 text-foreground'
+                    }`}>
+                      {!isAdmin && <p className={`text-[10px] font-bold mb-0.5 ${isAi ? 'text-muted' : 'text-foreground/70'}`}>{isAi ? 'AI' : 'Student'}</p>}
+                      {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
+                      {msg.attachment && (
+                        <a href={msg.attachment} target="_blank" rel="noreferrer">
+                          <img src={msg.attachment} alt="attachment" className="mt-1.5 rounded-xl max-h-40 object-cover" />
+                        </a>
+                      )}
+                      <p className={`text-[9px] mt-1 ${isAdmin ? 'text-white/60' : 'text-muted'}`}>{formatDate(msg.created_at)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted block mb-1">Status</label>
@@ -337,27 +378,32 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-muted block mb-1">Reply to student</label>
-              <textarea
-                value={reply}
-                onChange={e => setReply(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-border text-sm text-foreground
-                           resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-
             {error && (
               <div className="p-3 rounded-xl bg-danger/10 border border-danger/20 text-danger text-xs">{error}</div>
             )}
+          </div>
+        )}
 
-            <div className="flex gap-3 pt-1">
-              <Button variant="ghost" className="flex-1" onClick={onClose}>Cancel</Button>
-              <Button variant="secondary" className="flex-1" onClick={handleSave} loading={saving}>Save</Button>
+        {detail && (
+          <div className="p-4 pt-3 border-t border-border space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={messageDraft}
+                onChange={e => setMessageDraft(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Reply to student..."
+                className="flex-1 bg-surface-2 rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <Button variant="primary" size="sm" onClick={handleSendMessage} loading={sendingMessage} disabled={messageDraft.trim().length < 1}>
+                Send
+              </Button>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" className="flex-1" onClick={onClose}>Close</Button>
+              <Button variant="secondary" className="flex-1" onClick={handleSaveFields} loading={saving}>Save</Button>
               <Button variant="success" className="flex-1" onClick={handleResolve} loading={saving}>Resolve</Button>
             </div>
-          </>
+          </div>
         )}
       </Card>
     </div>

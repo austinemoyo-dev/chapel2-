@@ -1,119 +1,109 @@
 """
-Student Portal Views — submit, track, and follow up on issue reports.
+Student Portal Views — the chat side of an issue report.
 
 Auth reuses the existing student portal token (X-Portal-Token), same as
-apps/students/portal_views.py. Submission is free text only — no category
-or service field; triage runs synchronously so the student sees the
-outcome (resolved, asked for more detail, or queued for review) right in
-the response, instead of having to refresh.
+apps/students/portal_views.py. Every message — the first one (which opens
+a new ticket) or a follow-up — goes through the same shape: save the
+student's message, run the next AI turn synchronously, return the full
+thread so the chat UI can render the reply immediately.
 """
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from apps.students.portal_views import StudentPortalAuthentication, IsStudentAuthenticated
-from apps.attendance.push import send_push_to_admins
 
-from .ai_triage import run_triage, run_followup
-from .models import IssueReport, IssueStatusChoices, IssueSeverityChoices
-from .serializers import IssueReportPortalSerializer
+from .ai_triage import handle_student_message
+from .models import IssueReport, IssueMessage, IssueMessageSenderChoices
+from .serializers import IssueReportPortalListSerializer, IssueReportPortalDetailSerializer
 
-MIN_DESCRIPTION_LENGTH = 5
-MIN_FOLLOWUP_LENGTH = 3
+MIN_MESSAGE_LENGTH = 3
 
 
 class IssuePortalListCreateView(APIView):
     """
-    GET  /api/portal/issues/ — student's own reports
-    POST /api/portal/issues/ — submit a new report (description only)
+    GET  /api/portal/issues/ — student's tickets, most recently active first
+    POST /api/portal/issues/ — open a new ticket with a first message
     """
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     throttle_classes = []
 
     def get(self, request):
-        reports = IssueReport.objects.filter(student=request.user).order_by('-created_at')
-        serializer = IssueReportPortalSerializer(reports, many=True)
-        return Response({'results': serializer.data})
+        reports = IssueReport.objects.filter(student=request.user).order_by('-updated_at')
+        return Response({'results': IssueReportPortalListSerializer(reports, many=True).data})
 
     def post(self, request):
-        description = (request.data.get('description') or '').strip()
-        if len(description) < MIN_DESCRIPTION_LENGTH:
+        text = (request.data.get('text') or '').strip()
+        if len(text) < MIN_MESSAGE_LENGTH:
             return Response(
                 {'error': 'Please describe the issue in a bit more detail.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        issue = IssueReport.objects.create(student=request.user, description=description)
-        run_triage(issue.id)
+        issue = IssueReport.objects.create(student=request.user)
+        IssueMessage.objects.create(
+            issue=issue,
+            sender=IssueMessageSenderChoices.STUDENT,
+            text=text,
+            attachment=request.data.get('attachment'),
+        )
+        handle_student_message(issue.id)
         issue.refresh_from_db()
 
-        return Response(IssueReportPortalSerializer(issue).data, status=status.HTTP_201_CREATED)
+        return Response(
+            IssueReportPortalDetailSerializer(issue, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
-class IssuePortalRespondView(APIView):
+class IssuePortalThreadView(APIView):
+    """GET /api/portal/issues/{id}/ — full conversation for one ticket."""
+    authentication_classes = [StudentPortalAuthentication]
+    permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
+
+    def get(self, request, id):
+        try:
+            issue = IssueReport.objects.get(id=id, student=request.user)
+        except IssueReport.DoesNotExist:
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(IssueReportPortalDetailSerializer(issue, context={'request': request}).data)
+
+
+class IssuePortalMessageView(APIView):
     """
-    POST /api/portal/issues/{id}/respond/ — add justification/proof.
+    POST /api/portal/issues/{id}/messages/ — send a follow-up message.
 
-    Only meaningful while status=awaiting_proof (the system asked a
-    follow-up question before it will suggest a fix to admin). Re-runs
-    triage immediately so the student sees whether it's now queued for
-    admin review.
+    Works regardless of the ticket's current status — sending a message on
+    a resolved ticket reopens it for human review; sending one while
+    awaiting_proof is treated as the student's justification/evidence.
     """
     authentication_classes = [StudentPortalAuthentication]
     permission_classes = [IsStudentAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     throttle_classes = []
 
     def post(self, request, id):
         try:
             issue = IssueReport.objects.get(id=id, student=request.user)
         except IssueReport.DoesNotExist:
-            return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Ticket not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        if issue.status != IssueStatusChoices.AWAITING_PROOF:
-            return Response(
-                {'error': 'This report is not waiting on a response.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        followup = (request.data.get('response') or '').strip()
-        if len(followup) < MIN_FOLLOWUP_LENGTH:
+        text = (request.data.get('text') or '').strip()
+        attachment = request.data.get('attachment')
+        if len(text) < MIN_MESSAGE_LENGTH and not attachment:
             return Response({'error': 'Please add a bit more detail.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        issue.student_followup = followup
-        issue.save(update_fields=['student_followup', 'updated_at'])
-
-        run_followup(issue.id)
+        IssueMessage.objects.create(
+            issue=issue,
+            sender=IssueMessageSenderChoices.STUDENT,
+            text=text,
+            attachment=attachment,
+        )
+        handle_student_message(issue.id)
         issue.refresh_from_db()
 
-        return Response(IssueReportPortalSerializer(issue).data)
-
-
-class IssuePortalReopenView(APIView):
-    """POST /api/portal/issues/{id}/reopen/ — dispute an auto-resolved/resolved report."""
-    authentication_classes = [StudentPortalAuthentication]
-    permission_classes = [IsStudentAuthenticated]
-    throttle_classes = []
-
-    def post(self, request, id):
-        try:
-            issue = IssueReport.objects.get(id=id, student=request.user)
-        except IssueReport.DoesNotExist:
-            return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if issue.status not in (IssueStatusChoices.AUTO_RESOLVED, IssueStatusChoices.RESOLVED):
-            return Response(
-                {'error': 'Only auto-resolved or resolved reports can be reopened.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        issue.status = IssueStatusChoices.IN_REVIEW
-        if issue.severity in (IssueSeverityChoices.LOW, IssueSeverityChoices.MEDIUM):
-            issue.severity = IssueSeverityChoices.HIGH
-        issue.save(update_fields=['status', 'severity', 'updated_at'])
-
-        send_push_to_admins(
-            'Issue reopened',
-            f'{issue.student.full_name} said this report was not actually resolved.',
-        )
-        return Response({'id': str(issue.id), 'status': issue.status})
+        return Response(IssueReportPortalDetailSerializer(issue, context={'request': request}).data)

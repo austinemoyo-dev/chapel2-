@@ -1,9 +1,12 @@
 """
-Issue Reports — student-submitted complaints with AI-assisted triage and
-auto-resolution for the attendance-visibility case.
+Issue Reports — student-submitted complaints, held as a chat thread between
+the student and the system, with AI-assisted triage and auto-resolution for
+the attendance-visibility case.
 
-Intake is free text only — category and the related service(s) are filled
-in after the fact by triage (apps/issues/ai_triage.py), never chosen by the
+`IssueReport` is the ticket/conversation container. `IssueMessage` is each
+turn in that conversation (student, AI, or admin). `category`,
+`flagged_services`, `severity`, `resolution_type`, and `suggested_fix` are
+all populated by triage (apps/issues/ai_triage.py) — never chosen by the
 student. See diagnostics.py for the deterministic "is this actually a data
 problem" checks that drive auto-resolution.
 """
@@ -38,46 +41,27 @@ class IssueSeverityChoices(models.TextChoices):
 
 class ResolutionTypeChoices(models.TextChoices):
     NONE = 'none', 'None'
-    EXPLAINED = 'explained', 'Explained'              # no data change needed
+    EXPLAINED = 'explained', 'Explained'                 # no data change needed
     AWAITING_PROOF = 'awaiting_proof', 'Awaiting Proof'  # asked the student to justify before this can become a fix
-    FIX_NEEDED = 'fix_needed', 'Fix Needed'           # needs an admin-approved data change
+    FIX_NEEDED = 'fix_needed', 'Fix Needed'              # needs an admin-approved data change
 
 
 class IssueReport(models.Model):
-    """
-    A single student-submitted complaint.
-
-    `category`, `flagged_services`, `severity`, `resolution_type`,
-    `suggested_fix`, `ai_summary`, and `ai_draft_reply` are all populated by
-    triage after creation — none of them are supplied by the student.
-    """
+    """A conversation/ticket between a student and the system about one issue."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     student = models.ForeignKey(
         'students.Student',
         on_delete=models.CASCADE,
         related_name='issue_reports',
-        help_text='Student who submitted the report',
-    )
-    description = models.TextField(
-        help_text='Free-text complaint as typed by the student'
-    )
-    student_followup = models.TextField(
-        blank=True,
-        default='',
-        help_text=(
-            'Justification/proof the student gave in response to an '
-            'awaiting_proof request — e.g. why they believe they attended '
-            'despite no record existing. Required before a missing-record '
-            'fix can be suggested to admin, to deter "free attendance" claims.'
-        ),
+        help_text='Student who opened this conversation',
     )
 
     category = models.CharField(
         max_length=20,
         choices=IssueCategoryChoices.choices,
         default=IssueCategoryChoices.OTHER,
-        help_text='Assigned by triage after submission — not chosen by the student',
+        help_text='Assigned by triage after the first message — not chosen by the student',
     )
     flagged_services = models.JSONField(
         default=list,
@@ -109,14 +93,10 @@ class IssueReport(models.Model):
         help_text='e.g. {"action": "backdate", "service_ids": [...], "backdate_type": "valid"} '
                    '— pre-fills the existing attendance edit/backdate form for one-click admin approval',
     )
-
-    ai_summary = models.TextField(blank=True, default='')
-    ai_draft_reply = models.TextField(blank=True, default='')
-    admin_reply = models.TextField(
+    ai_summary = models.TextField(
         blank=True,
         default='',
-        help_text='What is actually shown to the student — defaults to the '
-                   'auto-generated explanation/draft, editable by admin',
+        help_text='Admin-facing quick-glance summary of the thread, kept in sync by triage',
     )
 
     resolved_by = models.ForeignKey(
@@ -134,7 +114,7 @@ class IssueReport(models.Model):
 
     class Meta:
         db_table = 'issue_reports'
-        ordering = ['-created_at']
+        ordering = ['-updated_at']
         indexes = [
             models.Index(fields=['status', 'severity'], name='idx_issue_status_severity'),
             models.Index(fields=['student', 'status'], name='idx_issue_student_status'),
@@ -142,3 +122,45 @@ class IssueReport(models.Model):
 
     def __str__(self):
         return f'Issue({self.student.full_name} — {self.category} [{self.status}])'
+
+    @property
+    def ticket_code(self):
+        """Short human-friendly reference shown when a ticket is escalated, e.g. ISS-260626-3F2A1B."""
+        return f'ISS-{self.created_at:%y%m%d}-{str(self.id)[:6].upper()}'
+
+
+class IssueMessageSenderChoices(models.TextChoices):
+    STUDENT = 'student', 'Student'
+    AI = 'ai', 'AI'
+    ADMIN = 'admin', 'Admin'
+
+
+class IssueMessage(models.Model):
+    """One turn in an IssueReport conversation."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    issue = models.ForeignKey(IssueReport, on_delete=models.CASCADE, related_name='messages')
+    sender = models.CharField(max_length=10, choices=IssueMessageSenderChoices.choices)
+    text = models.TextField(blank=True, default='')
+    attachment = models.ImageField(
+        upload_to='issue_attachments/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text='Evidence photo the student attached — e.g. proof they were present',
+    )
+    admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='issue_messages',
+        help_text='Set when sender=admin',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'issue_messages'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.sender}: {self.text[:60]}'

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Issues Portal Service — student-submitted issue reports (X-Portal-Token)
+// Issues Portal Service — student-facing issue chat (X-Portal-Token)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -12,7 +12,8 @@ function getToken(): string | null {
 
 async function portalRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (token) headers['X-Portal-Token'] = token;
 
   let res: Response;
@@ -36,35 +37,60 @@ async function portalRequest<T>(endpoint: string, options: RequestInit = {}): Pr
 
 export type IssueStatus = 'open' | 'awaiting_proof' | 'in_review' | 'auto_resolved' | 'resolved' | 'dismissed';
 export type IssueCategory = 'scan_failed' | 'wrong_status' | 'sync_issue' | 'account_access' | 'other';
+export type MessageSender = 'student' | 'ai' | 'admin';
 
-export interface PortalIssueReport {
+export interface IssueMessage {
   id: string;
-  description: string;
-  student_followup: string;
+  sender: MessageSender;
+  text: string;
+  attachment: string | null;
+  created_at: string;
+}
+
+export interface PortalIssueSummary {
+  id: string;
+  ticket_code: string;
   category: IssueCategory;
   status: IssueStatus;
-  admin_reply: string;
+  last_message: string;
   created_at: string;
   updated_at: string;
 }
 
+export interface PortalIssueThread {
+  id: string;
+  ticket_code: string;
+  category: IssueCategory;
+  status: IssueStatus;
+  messages: IssueMessage[];
+  created_at: string;
+  updated_at: string;
+}
+
+function buildBody(text: string, attachment?: File | null) {
+  if (attachment) {
+    const fd = new FormData();
+    fd.append('text', text);
+    fd.append('attachment', attachment);
+    return fd;
+  }
+  return JSON.stringify({ text });
+}
+
 export const issuesPortalService = {
-  list: () => portalRequest<{ results: PortalIssueReport[] }>('/api/portal/issues/'),
+  list: () => portalRequest<{ results: PortalIssueSummary[] }>('/api/portal/issues/'),
 
-  create: (description: string) =>
-    portalRequest<PortalIssueReport>('/api/portal/issues/', {
+  getThread: (id: string) => portalRequest<PortalIssueThread>(`/api/portal/issues/${id}/`),
+
+  start: (text: string, attachment?: File | null) =>
+    portalRequest<PortalIssueThread>('/api/portal/issues/', {
       method: 'POST',
-      body: JSON.stringify({ description }),
+      body: buildBody(text, attachment),
     }),
 
-  respond: (id: string, response: string) =>
-    portalRequest<PortalIssueReport>(`/api/portal/issues/${id}/respond/`, {
+  sendMessage: (id: string, text: string, attachment?: File | null) =>
+    portalRequest<PortalIssueThread>(`/api/portal/issues/${id}/messages/`, {
       method: 'POST',
-      body: JSON.stringify({ response }),
-    }),
-
-  reopen: (id: string) =>
-    portalRequest<{ id: string; status: IssueStatus }>(`/api/portal/issues/${id}/reopen/`, {
-      method: 'POST',
+      body: buildBody(text, attachment),
     }),
 };
