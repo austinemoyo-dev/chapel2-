@@ -31,8 +31,9 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-// Pages where the chatbot should not appear (admin panels, scanner, monitor).
-const HIDDEN_PREFIXES = ['/admin', '/scan', '/monitor'];
+// Pages where the chatbot should not appear (admin panels, scanner, monitor,
+// and the student help desk — that page is its own dedicated chat already).
+const HIDDEN_PREFIXES = ['/admin', '/scan', '/monitor', '/student/issues'];
 
 export default function ChatWidget() {
   const pathname = usePathname();

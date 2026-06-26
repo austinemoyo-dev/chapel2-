@@ -75,7 +75,12 @@ def diagnose_service(student, service):
             f'{label} on {service.scheduled_date} has a record but it is marked invalid '
             f'(sync_validation_result: {record.sync_validation_result or "n/a"}).'
         )
-        return _result(ResolutionTypeChoices.FIX_NEEDED, service, label, fact, None)
+        suggested_fix = {
+            'action': 'edit',
+            'attendance_record_id': str(record.id),
+            'is_valid': True,
+        }
+        return _result(ResolutionTypeChoices.FIX_NEEDED, service, label, fact, suggested_fix)
 
     if service.window_close_time > now:
         fact = f'{label} on {service.scheduled_date} has not closed yet — attendance is not finalized.'

@@ -187,6 +187,7 @@ def _advance_attendance_flow(issue, services, candidate_ids):
         issue.resolution_type = ResolutionTypeChoices.FIX_NEEDED
         issue.severity = IssueSeverityChoices.HIGH
         issue.status = IssueStatusChoices.IN_REVIEW
+        issue.suggested_fix = fix_needed[0]['suggested_fix']
         _send_ai_message(issue, _escalation_message(issue))
         _notify_new_ticket(issue)
     else:
