@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { portalService, type PortalAttendance } from '@/lib/api/portalService';
 
 const STATUS_CONFIG = {
@@ -106,6 +107,14 @@ export default function StudentAttendancePage() {
                     <p className="text-[10px] text-muted mt-2 ml-4">
                       In: {formatTime(svc.signed_in_at)}{svc.signed_out_at ? ` · Out: ${formatTime(svc.signed_out_at)}` : ''}
                     </p>
+                  )}
+                  {(svc.status === 'invalid' || svc.status === 'missed') && (
+                    <Link
+                      href={`/student/issues?prefill=${encodeURIComponent(`Regarding ${svc.service_name} on ${svc.scheduled_date}: `)}`}
+                      className="text-[10px] text-primary underline mt-2 ml-4 inline-block"
+                    >
+                      Report a problem
+                    </Link>
                   )}
                 </div>
               );

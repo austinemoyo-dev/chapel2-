@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'apps.attendance',
     'apps.reports',
     'apps.audit',
+    'apps.issues',
 ]
 
 MIDDLEWARE = [
@@ -295,6 +296,13 @@ if not DEBUG and _log_dir.exists():
 VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
 VAPID_PUBLIC_KEY  = os.environ.get('VAPID_PUBLIC_KEY', '')
 VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@chapel.local')
+
+# =============================================================================
+# AI TRIAGE (Anthropic Claude) — apps.issues
+# AI triage degrades gracefully when unset: issue reports still work, just
+# without AI-assigned category/severity/summary/draft replies.
+# =============================================================================
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 LOGGING = {
     'version': 1,

@@ -111,6 +111,7 @@ function PortalNav({ student, onLogout }: { student: PortalStudent; onLogout: ()
     { href: '/student',            icon: '🏠', label: 'Home'       },
     { href: '/student/attendance', icon: '📋', label: 'Attendance' },
     { href: '/student/face',       icon: '📸', label: 'Face'       },
+    { href: '/student/issues',     icon: '💬', label: 'Help'       },
     { href: '/student/profile',    icon: '👤', label: 'Profile'    },
   ];
   const isActive = (href: string) =>

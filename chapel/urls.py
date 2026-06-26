@@ -81,6 +81,15 @@ urlpatterns = [
     # GET /api/audit/logs/
     path('api/audit/', include('apps.audit.urls')),
 
+    # Issue Reports — student complaints + AI-assisted admin triage
+    # POST/GET /api/portal/issues/
+    # POST /api/portal/issues/{id}/reopen/
+    # GET /api/admin/issues/
+    # GET/PATCH /api/admin/issues/{id}/
+    # POST /api/admin/issues/{id}/resolve/
+    path('api/portal/issues/', include('apps.issues.portal_urls')),
+    path('api/admin/issues/', include('apps.issues.urls')),
+
     # Chapel Events (Phase 2)
     # GET /api/events/                    — public landing page
     # GET/POST /api/admin/events/         — admin CRUD

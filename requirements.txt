@@ -28,6 +28,9 @@ openpyxl>=3.1
 # Web Push notifications (VAPID)
 pywebpush>=2.0
 
+# AI triage for student issue reports (apps.issues)
+anthropic>=0.40
+
 # Runtime utilities
 python-decouple>=3.8
 gunicorn>=21.2
