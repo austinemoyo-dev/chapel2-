@@ -50,6 +50,19 @@ export default function AdminIssuesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Live updates — refresh the inbox periodically so new tickets and
+  // status changes show up without a manual reload. Paused while a
+  // thread is open so it doesn't yank focus from the conversation.
+  useEffect(() => {
+    if (selectedId) return;
+    const interval = setInterval(() => {
+      issuesAdminService.list({ status: statusTab })
+        .then(res => setIssues(res.results))
+        .catch(() => { /* transient poll failure — don't disrupt the view */ });
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [statusTab, selectedId]);
+
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl">
       <div>
@@ -148,6 +161,24 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [detail?.messages.length]);
+
+  // Live updates — while this thread is open, poll for new messages (e.g.
+  // the student replying) without disturbing the status/severity/fix
+  // fields the admin may be mid-editing.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      issuesAdminService.get(id)
+        .then(fresh => {
+          setDetail(prev => {
+            if (!prev) return prev;
+            const changed = fresh.messages.length !== prev.messages.length || fresh.status !== prev.status;
+            return changed ? fresh : prev;
+          });
+        })
+        .catch(() => { /* transient poll failure — don't disrupt the view */ });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [id]);
 
   const handleSendMessage = async () => {
     if (!detail || messageDraft.trim().length < 1) return;

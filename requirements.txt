@@ -28,7 +28,9 @@ openpyxl>=3.1
 # Web Push notifications (VAPID)
 pywebpush>=2.0
 
-# AI triage for student issue reports (apps.issues)
+# AI triage for student issue reports (apps.issues) — Groq preferred (free),
+# Anthropic supported as a fallback if that key is set instead.
+groq>=0.11
 anthropic>=0.40
 
 # Runtime utilities

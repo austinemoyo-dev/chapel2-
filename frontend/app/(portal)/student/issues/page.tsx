@@ -54,8 +54,37 @@ function IssuesContent() {
   useEffect(() => { loadList(); }, []);
 
   useEffect(() => {
+    if (view !== 'list') return;
+    const interval = setInterval(() => {
+      issuesPortalService.list()
+        .then(res => setTickets(res.results))
+        .catch(() => { /* transient poll failure — don't disrupt the view */ });
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [view]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeThread?.messages.length]);
+
+  // Live updates — while a thread is open, poll for new messages (e.g. an
+  // admin reply) so the chat feels live without a manual refresh.
+  useEffect(() => {
+    if (view !== 'thread' || !activeThread) return;
+    const threadId = activeThread.id;
+    const interval = setInterval(() => {
+      issuesPortalService.getThread(threadId)
+        .then(fresh => {
+          setActiveThread(prev => {
+            if (!prev || prev.id !== threadId) return prev;
+            const changed = fresh.messages.length !== prev.messages.length || fresh.status !== prev.status;
+            return changed ? fresh : prev;
+          });
+        })
+        .catch(() => { /* transient poll failure — don't disrupt the chat */ });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [view, activeThread?.id]);
 
   const openThread = async (id: string) => {
     setView('thread');

@@ -298,10 +298,13 @@ VAPID_PUBLIC_KEY  = os.environ.get('VAPID_PUBLIC_KEY', '')
 VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@chapel.local')
 
 # =============================================================================
-# AI TRIAGE (Anthropic Claude) — apps.issues
-# AI triage degrades gracefully when unset: issue reports still work, just
-# without AI-assigned category/severity/summary/draft replies.
+# AI TRIAGE — apps.issues
+# Prefers GROQ_API_KEY (free, no card needed — same key already used by the
+# frontend chatbot) and falls back to ANTHROPIC_API_KEY if that's set
+# instead. AI triage degrades gracefully when neither is set: issue reports
+# still work, just without AI-assigned category/severity/summary/replies.
 # =============================================================================
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 LOGGING = {

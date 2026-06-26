@@ -14,9 +14,11 @@ Three things this module decides, kept separate on purpose:
    — always deterministic (diagnostics.py), never the LLM's call. This is
    what makes the proof-gate against "free attendance" claims reliable even
    when no AI is configured.
-3. Everything else — a bounded reply-or-escalate chat loop using Claude,
-   only when ANTHROPIC_API_KEY is set. Without it, general complaints can't
-   hold a conversation, so they escalate to a ticket immediately instead of
+3. Everything else — a bounded reply-or-escalate chat loop using whichever
+   AI provider is configured (Groq preferred — free, no card needed, same
+   key the frontend chatbot already uses; Anthropic supported as a
+   fallback). Without either, general complaints can't hold a
+   conversation, so they escalate to a ticket immediately instead of
    leaving the student with no response.
 """
 import json
@@ -39,7 +41,8 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-MODEL = 'claude-haiku-4-5-20251001'
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
 
 ATTENDANCE_KEYWORDS = (
     'attendance', 'present', 'absent', 'missed', 'not showing', 'not see',
@@ -195,43 +198,34 @@ def _advance_attendance_flow(issue, services, candidate_ids):
 
 
 def _advance_general_flow(issue):
-    client = _get_client()
-    if client is None:
-        # Can't hold a conversation without AI — escalate immediately rather
-        # than leaving the student with no response at all.
+    data = _call_tool(
+        system=GENERAL_CHAT_SYSTEM,
+        messages=_build_history(issue),
+        name=RESPOND_TOOL['name'],
+        description=RESPOND_TOOL['description'],
+        schema=RESPOND_TOOL['input_schema'],
+    )
+    if data is None:
+        # Can't hold a conversation without AI configured (or the call
+        # failed) — escalate rather than leaving the student with no reply.
         issue.status = IssueStatusChoices.IN_REVIEW
         _send_ai_message(issue, f"Thanks — I've created ticket {issue.ticket_code} for our admin team. They'll respond here.")
         _notify_new_ticket(issue)
         return
 
-    try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=400,
-            system=GENERAL_CHAT_SYSTEM,
-            messages=_build_history(issue),
-            tools=[RESPOND_TOOL],
-            tool_choice={'type': 'tool', 'name': 'respond_to_student'},
-        )
-        data = _tool_input(message)
-        if data.get('category') in IssueCategoryChoices.values:
-            issue.category = data['category']
-        if data.get('severity') in IssueSeverityChoices.values:
-            issue.severity = data['severity']
+    if data.get('category') in IssueCategoryChoices.values:
+        issue.category = data['category']
+    if data.get('severity') in IssueSeverityChoices.values:
+        issue.severity = data['severity']
 
-        reply_text = data.get('message') or "Could you tell me a bit more about what's going on?"
-        if data.get('action') == 'escalate':
-            issue.status = IssueStatusChoices.IN_REVIEW
-            issue.ai_summary = data.get('summary', '')
-            _send_ai_message(issue, f'{reply_text} {_escalation_message(issue)}'.strip())
-            _notify_new_ticket(issue)
-        else:
-            _send_ai_message(issue, reply_text)
-    except Exception:
-        logger.exception('AI chat turn failed for issue %s — escalating instead', issue.id)
+    reply_text = data.get('message') or "Could you tell me a bit more about what's going on?"
+    if data.get('action') == 'escalate':
         issue.status = IssueStatusChoices.IN_REVIEW
-        _send_ai_message(issue, f"I've created ticket {issue.ticket_code} for our admin team to review — they'll respond here.")
+        issue.ai_summary = data.get('summary', '')
+        _send_ai_message(issue, f'{reply_text} {_escalation_message(issue)}'.strip())
         _notify_new_ticket(issue)
+    else:
+        _send_ai_message(issue, reply_text)
 
 
 def _escalation_message(issue):
@@ -295,44 +289,37 @@ def _classify(description, services):
     """Returns {'category': ..., 'service_ids': [...]}. service_ids is only
     meaningful for category=wrong_status; empty means "check every recent
     service" (either the AI couldn't tell, or AI isn't configured)."""
-    client = _get_client()
-    if client is None:
-        return _keyword_fallback_classify(description)
-
     service_options = [
         {'id': str(s.id), 'label': s.name or f'{s.service_type} {s.service_group}', 'date': str(s.scheduled_date)}
         for s in services
     ]
-    try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=400,
-            system=(
-                "You triage complaints submitted to a church attendance system's "
-                "student support chat. Classify the complaint and, only if it is "
-                "about attendance showing wrong or missing, point to which of the "
-                "student's recent services (from the supplied list) it concerns."
+    data = _call_tool(
+        system=(
+            "You triage complaints submitted to a church attendance system's "
+            "student support chat. Classify the complaint and, only if it is "
+            "about attendance showing wrong or missing, point to which of the "
+            "student's recent services (from the supplied list) it concerns."
+        ),
+        messages=[{
+            'role': 'user',
+            'content': (
+                f'Complaint: "{description}"\n\n'
+                f"Student's recent services: {json.dumps(service_options)}"
             ),
-            messages=[{
-                'role': 'user',
-                'content': (
-                    f'Complaint: "{description}"\n\n'
-                    f"Student's recent services: {json.dumps(service_options)}"
-                ),
-            }],
-            tools=[CLASSIFY_TOOL],
-            tool_choice={'type': 'tool', 'name': 'classify_complaint'},
-        )
-        data = _tool_input(message)
-        category = data.get('category')
-        if category not in IssueCategoryChoices.values:
-            category = IssueCategoryChoices.OTHER
-        valid_ids = {s['id'] for s in service_options}
-        service_ids = [sid for sid in data.get('service_ids', []) if sid in valid_ids]
-        return {'category': category, 'service_ids': service_ids}
-    except Exception:
-        logger.exception('AI classification failed — falling back to keyword check')
+        }],
+        name=CLASSIFY_TOOL['name'],
+        description=CLASSIFY_TOOL['description'],
+        schema=CLASSIFY_TOOL['input_schema'],
+    )
+    if data is None:
         return _keyword_fallback_classify(description)
+
+    category = data.get('category')
+    if category not in IssueCategoryChoices.values:
+        category = IssueCategoryChoices.OTHER
+    valid_ids = {s['id'] for s in service_options}
+    service_ids = [sid for sid in data.get('service_ids', []) if sid in valid_ids]
+    return {'category': category, 'service_ids': service_ids}
 
 
 def _keyword_fallback_classify(description):
@@ -343,39 +330,95 @@ def _keyword_fallback_classify(description):
 
 
 def _phrase_reply(facts_text, is_problem):
-    client = _get_client()
-    if client is None:
-        if is_problem:
-            return facts_text + " We've flagged this for an admin to review and fix."
-        return facts_text
+    text = _call_text(
+        system=(
+            'Write a short, warm reply (2-3 sentences) to a student about their '
+            'attendance, based only on the facts given. Do not invent anything.'
+        ),
+        messages=[{'role': 'user', 'content': facts_text}],
+    )
+    if text:
+        return text
+    if is_problem:
+        return facts_text + " We've flagged this for an admin to review and fix."
+    return facts_text
+
+
+def _call_tool(system, messages, name, description, schema):
+    """Calls whichever AI provider is configured and returns the parsed
+    tool-call arguments as a dict, or None if unconfigured / the call failed."""
+    provider = _get_provider()
+    if provider is None:
+        return None
     try:
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=200,
-            system=(
-                'Write a short, warm reply (2-3 sentences) to a student about their '
-                'attendance, based only on the facts given. Do not invent anything.'
-            ),
-            messages=[{'role': 'user', 'content': facts_text}],
+        if provider['kind'] == 'groq':
+            response = provider['client'].chat.completions.create(
+                model=GROQ_MODEL,
+                max_tokens=600,
+                messages=[{'role': 'system', 'content': system}, *messages],
+                tools=[{'type': 'function', 'function': {'name': name, 'description': description, 'parameters': schema}}],
+                tool_choice={'type': 'function', 'function': {'name': name}},
+            )
+            call = response.choices[0].message.tool_calls[0]
+            return json.loads(call.function.arguments)
+
+        message = provider['client'].messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=600,
+            system=system,
+            messages=messages,
+            tools=[{'name': name, 'description': description, 'input_schema': schema}],
+            tool_choice={'type': 'tool', 'name': name},
         )
-        text = ''.join(block.text for block in message.content if block.type == 'text').strip()
-        return text or facts_text
+        return next(block.input for block in message.content if block.type == 'tool_use')
     except Exception:
-        logger.exception('AI reply phrasing failed — using raw facts')
-        return facts_text
+        logger.exception('AI tool call (%s) failed', name)
+        return None
 
 
-def _tool_input(message):
-    return next(block.input for block in message.content if block.type == 'tool_use')
-
-
-def _get_client():
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
-    if not api_key:
+def _call_text(system, messages):
+    """Calls whichever AI provider is configured for a plain text reply, or
+    returns None if unconfigured / the call failed."""
+    provider = _get_provider()
+    if provider is None:
         return None
     try:
-        import anthropic
-    except ImportError:
-        logger.warning('anthropic package not installed — AI triage disabled.')
+        if provider['kind'] == 'groq':
+            response = provider['client'].chat.completions.create(
+                model=GROQ_MODEL,
+                max_tokens=300,
+                messages=[{'role': 'system', 'content': system}, *messages],
+            )
+            return (response.choices[0].message.content or '').strip()
+
+        message = provider['client'].messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=300, system=system, messages=messages,
+        )
+        return ''.join(block.text for block in message.content if block.type == 'text').strip()
+    except Exception:
+        logger.exception('AI text call failed')
         return None
-    return anthropic.Anthropic(api_key=api_key)
+
+
+def _get_provider():
+    """Groq preferred (free, already configured for the frontend chatbot);
+    Anthropic supported as a fallback if that key is set instead."""
+    groq_key = getattr(settings, 'GROQ_API_KEY', '')
+    if groq_key:
+        try:
+            from groq import Groq
+        except ImportError:
+            logger.warning('groq package not installed — checking for Anthropic instead.')
+        else:
+            return {'kind': 'groq', 'client': Groq(api_key=groq_key)}
+
+    anthropic_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
+    if anthropic_key:
+        try:
+            import anthropic
+        except ImportError:
+            logger.warning('anthropic package not installed — AI triage disabled.')
+        else:
+            return {'kind': 'anthropic', 'client': anthropic.Anthropic(api_key=anthropic_key)}
+
+    return None
