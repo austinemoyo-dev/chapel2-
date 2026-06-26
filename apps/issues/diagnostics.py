@@ -7,6 +7,12 @@ data problem (no record / unexplained invalid record, needs an admin-
 approved fix). This is what makes auto-resolution work even with no LLM
 configured — the LLM (ai_triage.py) only phrases the reply text and picks
 *which* services to check; it never decides the outcome.
+
+The one case that's flagged but not immediately actionable is "no record at
+all, and the window already closed" — that's exactly what a student would
+claim to get free attendance with zero evidence, so it's marked
+`requires_proof=True` and ai_triage.py holds back the suggested fix until
+the student has written some justification.
 """
 from django.db.models import Q
 from django.utils import timezone
@@ -38,7 +44,14 @@ def diagnose_service(student, service):
             'service_label': str,
             'fact': str,                # human-readable, used to build the reply
             'suggested_fix': dict | None,
+            'requires_proof': bool,     # True only for "no record at all, window closed"
         }
+
+    `requires_proof` flags the one case ripe for abuse — a student claiming
+    they attended a service that has already closed with zero record of
+    them at all. The caller (ai_triage.py) must not surface `suggested_fix`
+    for that case until the student has provided some justification —
+    otherwise this becomes a free, no-evidence way to get attendance added.
     """
     label = service.name or f'{service.get_service_type_display()} ({service.service_group})'
     record = AttendanceRecord.objects.filter(student=student, service=service).first()
@@ -75,14 +88,15 @@ def diagnose_service(student, service):
         'service_ids': [str(service.id)],
         'backdate_type': 'valid',
     }
-    return _result(ResolutionTypeChoices.FIX_NEEDED, service, label, fact, suggested_fix)
+    return _result(ResolutionTypeChoices.FIX_NEEDED, service, label, fact, suggested_fix, requires_proof=True)
 
 
-def _result(resolution, service, label, fact, suggested_fix):
+def _result(resolution, service, label, fact, suggested_fix, requires_proof=False):
     return {
         'resolution': resolution,
         'service_id': str(service.id),
         'service_label': label,
         'fact': fact,
         'suggested_fix': suggested_fix,
+        'requires_proof': requires_proof,
     }

@@ -34,12 +34,13 @@ async function portalRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   return data as T;
 }
 
-export type IssueStatus = 'open' | 'in_review' | 'auto_resolved' | 'resolved' | 'dismissed';
+export type IssueStatus = 'open' | 'awaiting_proof' | 'in_review' | 'auto_resolved' | 'resolved' | 'dismissed';
 export type IssueCategory = 'scan_failed' | 'wrong_status' | 'sync_issue' | 'account_access' | 'other';
 
 export interface PortalIssueReport {
   id: string;
   description: string;
+  student_followup: string;
   category: IssueCategory;
   status: IssueStatus;
   admin_reply: string;
@@ -51,9 +52,15 @@ export const issuesPortalService = {
   list: () => portalRequest<{ results: PortalIssueReport[] }>('/api/portal/issues/'),
 
   create: (description: string) =>
-    portalRequest<{ id: string; status: IssueStatus; message: string }>('/api/portal/issues/', {
+    portalRequest<PortalIssueReport>('/api/portal/issues/', {
       method: 'POST',
       body: JSON.stringify({ description }),
+    }),
+
+  respond: (id: string, response: string) =>
+    portalRequest<PortalIssueReport>(`/api/portal/issues/${id}/respond/`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
     }),
 
   reopen: (id: string) =>

@@ -1,25 +1,29 @@
 """
 AI-assisted triage for IssueReport.
 
-Runs on every submission since intake is free text only — there's no
-category or service picked by the student up front. Two jobs, kept
-separate on purpose:
+Called synchronously from the portal view (create/respond) so the student
+sees the outcome immediately instead of polling — the deterministic path
+(diagnostics.py, keyword fallback) is instant either way, and even the AI
+calls are short enough that one extra second on submit is an acceptable
+trade for not needing a background job or a refresh.
 
-1. Decide the *outcome* (auto-resolve vs. flag a fix vs. just route to the
-   admin queue) — always deterministic (diagnostics.py) or a plain keyword
-   check, never the LLM's call.
+Two jobs, kept separate on purpose:
+
+1. Decide the *outcome* (auto-resolve vs. ask for proof vs. flag a fix vs.
+   route to the admin queue) — always deterministic (diagnostics.py) or a
+   plain keyword check, never the LLM's call.
 2. Phrase the reply / produce a summary for the admin queue — this is the
    only part that uses Claude, and only when ANTHROPIC_API_KEY is set.
    Everything still works, just less precisely, with no AI configured.
 """
 import json
 import logging
-import threading
 
 from django.conf import settings
 from django.utils import timezone
 
 from apps.attendance.push import send_push_to_admins
+from apps.services.models import Service
 
 from .diagnostics import diagnose_service, recent_services_for
 from .models import (
@@ -76,12 +80,8 @@ GENERAL_TOOL = {
 }
 
 
-def trigger_triage(issue_id):
-    """Fire-and-forget, same pattern as apps/attendance/signals.py."""
-    threading.Thread(target=run_triage, args=(issue_id,), daemon=True).start()
-
-
 def run_triage(issue_id):
+    """First pass — runs once, right after the student submits."""
     from .models import IssueReport
 
     try:
@@ -100,16 +100,48 @@ def run_triage(issue_id):
             _triage_general(issue, services)
 
         issue.save()
-
-        if issue.severity in (IssueSeverityChoices.HIGH, IssueSeverityChoices.URGENT):
-            title = (
-                'New attendance complaint'
-                if issue.category == IssueCategoryChoices.WRONG_STATUS
-                else 'New urgent complaint'
-            )
-            send_push_to_admins(title, f'{issue.student.full_name}: {issue.description[:120]}')
+        _notify_admins(issue)
     except Exception:
         logger.exception('Issue triage failed for %s', issue_id)
+
+
+def run_followup(issue_id):
+    """
+    Re-evaluation after the student adds proof/justification via the
+    respond endpoint. Re-checks the same services already flagged on the
+    first pass — no re-classification, since we already know this is an
+    attendance complaint and which service(s) it's about.
+    """
+    from .models import IssueReport
+
+    try:
+        issue = IssueReport.objects.select_related('student').get(id=issue_id)
+    except IssueReport.DoesNotExist:
+        return
+
+    try:
+        services = list(Service.objects.filter(id__in=issue.flagged_services))
+        candidate_ids = set(issue.flagged_services)
+        _resolve_attendance_complaint(issue, services, candidate_ids)
+        issue.save()
+        _notify_admins(issue)
+    except Exception:
+        logger.exception('Issue follow-up triage failed for %s', issue_id)
+
+
+def _notify_admins(issue):
+    if issue.severity in (IssueSeverityChoices.HIGH, IssueSeverityChoices.URGENT):
+        title = (
+            'New attendance complaint'
+            if issue.category == IssueCategoryChoices.WRONG_STATUS
+            else 'New urgent complaint'
+        )
+        send_push_to_admins(title, f'{issue.student.full_name}: {issue.description[:120]}')
+    elif issue.status == IssueStatusChoices.AUTO_RESOLVED:
+        send_push_to_admins(
+            'Issue auto-resolved',
+            f'{issue.student.full_name}: {issue.ai_summary[:120] or issue.description[:120]}',
+        )
 
 
 def _resolve_attendance_complaint(issue, services, candidate_ids):
@@ -123,12 +155,26 @@ def _resolve_attendance_complaint(issue, services, candidate_ids):
     issue.flagged_services = [r['service_id'] for r in relevant]
     issue.ai_summary = facts
 
-    if fix_needed:
+    needs_proof = [r for r in fix_needed if r['requires_proof']]
+
+    if needs_proof and not issue.student_followup:
+        # The one case ripe for abuse: "no record at all, window closed."
+        # Hold the suggested fix back until the student justifies it —
+        # this is the speed bump against free/late attendance claims.
+        issue.resolution_type = ResolutionTypeChoices.AWAITING_PROOF
+        issue.status = IssueStatusChoices.AWAITING_PROOF
+        issue.suggested_fix = None
+        reply = _proof_request_reply(needs_proof)
+        issue.ai_draft_reply = reply
+        issue.admin_reply = reply
+    elif fix_needed:
         issue.resolution_type = ResolutionTypeChoices.FIX_NEEDED
         issue.severity = IssueSeverityChoices.HIGH
         issue.status = IssueStatusChoices.IN_REVIEW
         issue.suggested_fix = fix_needed[0]['suggested_fix']
-        issue.ai_draft_reply = _phrase_reply(facts, is_problem=True)
+        if issue.student_followup:
+            issue.ai_summary = f'{facts} Student says: "{issue.student_followup}"'
+        issue.ai_draft_reply = _phrase_reply(issue.ai_summary, is_problem=True)
     else:
         issue.resolution_type = ResolutionTypeChoices.EXPLAINED
         issue.status = IssueStatusChoices.AUTO_RESOLVED
@@ -136,6 +182,17 @@ def _resolve_attendance_complaint(issue, services, candidate_ids):
         issue.ai_draft_reply = reply
         issue.admin_reply = reply
         issue.resolved_at = timezone.now()
+
+
+def _proof_request_reply(needs_proof_results):
+    services_text = ', '.join(r['service_label'] for r in needs_proof_results)
+    return (
+        f"We don't have a record of you attending {services_text}, and the "
+        f"attendance window has already closed. Before this can be corrected, "
+        f"please reply with more detail — were you there but had a scanning "
+        f"issue, were you running late, or is there someone who can confirm "
+        f"you attended? Any detail helps us review this fairly."
+    )
 
 
 def _triage_general(issue, services):

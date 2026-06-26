@@ -22,6 +22,7 @@ class IssueCategoryChoices(models.TextChoices):
 
 class IssueStatusChoices(models.TextChoices):
     OPEN = 'open', 'Open'
+    AWAITING_PROOF = 'awaiting_proof', 'Awaiting Proof'
     IN_REVIEW = 'in_review', 'In Review'
     AUTO_RESOLVED = 'auto_resolved', 'Auto-Resolved'
     RESOLVED = 'resolved', 'Resolved'
@@ -37,8 +38,9 @@ class IssueSeverityChoices(models.TextChoices):
 
 class ResolutionTypeChoices(models.TextChoices):
     NONE = 'none', 'None'
-    EXPLAINED = 'explained', 'Explained'       # no data change needed
-    FIX_NEEDED = 'fix_needed', 'Fix Needed'    # needs an admin-approved data change
+    EXPLAINED = 'explained', 'Explained'              # no data change needed
+    AWAITING_PROOF = 'awaiting_proof', 'Awaiting Proof'  # asked the student to justify before this can become a fix
+    FIX_NEEDED = 'fix_needed', 'Fix Needed'           # needs an admin-approved data change
 
 
 class IssueReport(models.Model):
@@ -59,6 +61,16 @@ class IssueReport(models.Model):
     )
     description = models.TextField(
         help_text='Free-text complaint as typed by the student'
+    )
+    student_followup = models.TextField(
+        blank=True,
+        default='',
+        help_text=(
+            'Justification/proof the student gave in response to an '
+            'awaiting_proof request — e.g. why they believe they attended '
+            'despite no record existing. Required before a missing-record '
+            'fix can be suggested to admin, to deter "free attendance" claims.'
+        ),
     )
 
     category = models.CharField(
@@ -86,7 +98,7 @@ class IssueReport(models.Model):
         db_index=True,
     )
     resolution_type = models.CharField(
-        max_length=10,
+        max_length=15,
         choices=ResolutionTypeChoices.choices,
         default=ResolutionTypeChoices.NONE,
         help_text='Set by deterministic diagnostics, never by the LLM',

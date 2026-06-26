@@ -16,7 +16,10 @@ from .models import IssueReport
 class IssueReportPortalSerializer(serializers.ModelSerializer):
     class Meta:
         model = IssueReport
-        fields = ['id', 'description', 'category', 'status', 'admin_reply', 'created_at', 'updated_at']
+        fields = [
+            'id', 'description', 'student_followup', 'category', 'status',
+            'admin_reply', 'created_at', 'updated_at',
+        ]
         read_only_fields = fields
 
 
@@ -46,7 +49,7 @@ class IssueReportAdminDetailSerializer(serializers.ModelSerializer):
         model = IssueReport
         fields = [
             'id', 'student', 'student_name', 'student_identifier',
-            'description', 'category', 'status', 'severity',
+            'description', 'student_followup', 'category', 'status', 'severity',
             'resolution_type', 'suggested_fix', 'flagged_services', 'flagged_services_detail',
             'ai_summary', 'ai_draft_reply', 'admin_reply',
             'resolved_by', 'resolved_by_name', 'resolved_at',

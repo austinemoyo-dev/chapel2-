@@ -8,7 +8,7 @@ import type { IssueStatus, IssueCategory } from './issuesPortalService';
 export type { IssueStatus, IssueCategory };
 
 export type IssueSeverity = 'low' | 'medium' | 'high' | 'urgent';
-export type ResolutionType = 'none' | 'explained' | 'fix_needed';
+export type ResolutionType = 'none' | 'explained' | 'awaiting_proof' | 'fix_needed';
 
 export interface IssueReportListItem {
   id: string;
@@ -43,6 +43,7 @@ export interface SuggestedFix {
 }
 
 export interface IssueReportDetail extends IssueReportListItem {
+  student_followup: string;
   suggested_fix: SuggestedFix | null;
   flagged_services: string[];
   flagged_services_detail: FlaggedServiceDetail[];

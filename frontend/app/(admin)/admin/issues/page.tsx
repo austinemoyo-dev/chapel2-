@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button';
 
 const STATUS_TABS: { value: IssueStatus; label: string }[] = [
   { value: 'open', label: 'Open' },
+  { value: 'awaiting_proof', label: 'Awaiting Proof' },
   { value: 'in_review', label: 'In Review' },
   { value: 'auto_resolved', label: 'Auto-Resolved' },
   { value: 'resolved', label: 'Resolved' },
@@ -95,6 +96,7 @@ export default function AdminIssuesPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {issue.resolution_type === 'fix_needed' && <Badge variant="warning" size="sm">Fix needed</Badge>}
+                  {issue.resolution_type === 'awaiting_proof' && <Badge variant="info" size="sm">Awaiting proof</Badge>}
                   <Badge variant={SEVERITY_BADGE[issue.severity]} size="sm">{issue.severity}</Badge>
                 </div>
               </div>
@@ -226,6 +228,13 @@ function IssueDetailModal({ id, onClose, onChanged }: { id: string; onClose: () 
               </p>
               <p className="text-foreground">{detail.description}</p>
             </div>
+
+            {detail.student_followup && (
+              <div className="p-3 rounded-xl bg-surface-2 border border-border text-sm">
+                <p className="text-xs font-semibold text-muted mb-1">Student&apos;s response</p>
+                <p className="text-foreground">{detail.student_followup}</p>
+              </div>
+            )}
 
             {detail.ai_summary && (
               <div className="p-3 rounded-xl bg-primary-muted border border-primary/20 text-sm">

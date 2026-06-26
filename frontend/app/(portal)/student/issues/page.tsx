@@ -5,11 +5,12 @@ import { useSearchParams } from 'next/navigation';
 import { issuesPortalService, type PortalIssueReport, type IssueStatus } from '@/lib/api/issuesPortalService';
 
 const STATUS_CONFIG: Record<IssueStatus, { label: string; color: string; bg: string; dot: string }> = {
-  open:          { label: 'Submitted',    color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/20',    dot: 'bg-blue-400'    },
-  in_review:     { label: 'In Review',    color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',  dot: 'bg-amber-400'   },
-  auto_resolved: { label: 'Resolved',     color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
-  resolved:      { label: 'Resolved',     color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
-  dismissed:     { label: 'Dismissed',    color: 'text-muted',       bg: 'bg-surface-2 border-border',           dot: 'bg-muted'       },
+  open:           { label: 'Submitted',     color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/20',       dot: 'bg-blue-400'    },
+  awaiting_proof: { label: 'Needs more info', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20',     dot: 'bg-amber-400'   },
+  in_review:      { label: 'In Review',     color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',     dot: 'bg-amber-400'   },
+  auto_resolved:  { label: 'Resolved',      color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
+  resolved:       { label: 'Resolved',      color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
+  dismissed:      { label: 'Dismissed',     color: 'text-muted',       bg: 'bg-surface-2 border-border',              dot: 'bg-muted'       },
 };
 
 function formatDate(iso: string) {
@@ -24,8 +25,11 @@ function IssuesContent() {
 
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+
+  const [respondDrafts, setRespondDrafts] = useState<Record<string, string>>({});
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
   useEffect(() => {
     const prefill = searchParams.get('prefill');
@@ -42,19 +46,37 @@ function IssuesContent() {
 
   useEffect(() => { load(); }, []);
 
+  const replaceReport = (updated: PortalIssueReport) => {
+    setReports(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+  };
+
   const handleSubmit = async () => {
     if (description.trim().length < 5) return;
     setSubmitting(true);
-    setSubmitMessage(null);
+    setSubmitError(null);
     try {
-      const res = await issuesPortalService.create(description.trim());
-      setSubmitMessage(res.message);
+      const created = await issuesPortalService.create(description.trim());
+      setReports(prev => [created, ...prev]);
       setDescription('');
-      load();
     } catch (e) {
-      setSubmitMessage((e as Error).message || 'Failed to submit report');
+      setSubmitError((e as Error).message || 'Failed to submit report');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRespond = async (id: string) => {
+    const text = (respondDrafts[id] || '').trim();
+    if (text.length < 3) return;
+    setRespondingId(id);
+    try {
+      const updated = await issuesPortalService.respond(id, text);
+      replaceReport(updated);
+      setRespondDrafts(prev => ({ ...prev, [id]: '' }));
+    } catch (e) {
+      setError((e as Error).message || 'Failed to send response');
+    } finally {
+      setRespondingId(null);
     }
   };
 
@@ -90,9 +112,9 @@ function IssuesContent() {
           disabled={submitting || description.trim().length < 5}
           className="w-full bg-primary text-white text-sm font-semibold rounded-xl py-2.5 disabled:opacity-40"
         >
-          {submitting ? 'Submitting…' : 'Submit'}
+          {submitting ? 'Checking…' : 'Submit'}
         </button>
-        {submitMessage && <p className="text-xs text-center text-muted">{submitMessage}</p>}
+        {submitError && <p className="text-xs text-center text-red-400">{submitError}</p>}
       </div>
 
       <div>
@@ -113,6 +135,7 @@ function IssuesContent() {
             {reports.map(report => {
               const cfg = STATUS_CONFIG[report.status];
               const canReopen = report.status === 'auto_resolved' || report.status === 'resolved';
+              const awaitingProof = report.status === 'awaiting_proof';
               return (
                 <div key={report.id} className={`rounded-2xl p-4 border ${cfg.bg} space-y-2`}>
                   <div className="flex items-start justify-between gap-2">
@@ -126,6 +149,27 @@ function IssuesContent() {
                   {report.admin_reply && (
                     <div className="bg-surface-1/60 rounded-xl px-3 py-2">
                       <p className="text-xs text-foreground">{report.admin_reply}</p>
+                    </div>
+                  )}
+                  {report.student_followup && (
+                    <p className="text-xs text-muted italic">You said: {report.student_followup}</p>
+                  )}
+                  {awaitingProof && (
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={respondDrafts[report.id] || ''}
+                        onChange={e => setRespondDrafts(prev => ({ ...prev, [report.id]: e.target.value }))}
+                        placeholder="Add detail or proof here..."
+                        rows={2}
+                        className="w-full bg-surface-1/60 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <button
+                        onClick={() => handleRespond(report.id)}
+                        disabled={respondingId === report.id || (respondDrafts[report.id] || '').trim().length < 3}
+                        className="text-xs font-semibold text-primary disabled:opacity-40"
+                      >
+                        {respondingId === report.id ? 'Sending…' : 'Send response'}
+                      </button>
                     </div>
                   )}
                   {canReopen && (
