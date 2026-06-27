@@ -310,3 +310,26 @@ class StudentAccount(models.Model):
 
     def __str__(self):
         return f'Portal account — {self.student.full_name}'
+
+
+class StudentPushSubscription(models.Model):
+    """
+    Web Push subscription for a student's browser — the portal equivalent of
+    apps.accounts.models.PushSubscription. Lets students get notified (e.g.
+    a reply or resolution on an issue report) without the portal tab open.
+    """
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='push_subscriptions',
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh   = models.TextField()
+    auth     = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'student_push_subscriptions'
+
+    def __str__(self):
+        return f'StudentPushSubscription({self.student.full_name}, {self.endpoint[:60]}…)'

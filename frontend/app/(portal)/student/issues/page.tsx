@@ -146,9 +146,12 @@ function IssuesContent() {
   if (view === 'thread') {
     const cfg = activeThread ? STATUS_CONFIG[activeThread.status] : null;
     return (
-      <div className="min-h-dvh bg-background flex flex-col max-w-lg mx-auto">
-        <div className="px-4 py-4 flex items-center gap-3 border-b border-border">
-          <button onClick={backToList} className="text-muted text-sm">&larr; Back</button>
+      <div
+        className="fixed inset-0 z-[60] bg-background flex flex-col max-w-lg mx-auto"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="px-4 py-4 flex items-center gap-3 border-b border-border shrink-0">
+          <button onClick={backToList} className="text-muted text-sm py-2 pr-2 -ml-1">&larr; Back</button>
           {activeThread && cfg && (
             <div className="flex-1 flex items-center justify-between">
               <p className="text-sm font-bold text-foreground">{activeThread.ticket_code}</p>
@@ -157,7 +160,7 @@ function IssuesContent() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 space-y-3">
           {loadingThread ? (
             <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-12 rounded-2xl bg-surface-2 animate-pulse" />)}</div>
           ) : (
@@ -185,13 +188,16 @@ function IssuesContent() {
           <div ref={bottomRef} />
         </div>
 
-        {error && <p className="px-4 text-xs text-red-400">{error}</p>}
+        {error && <p className="px-4 text-xs text-red-400 shrink-0">{error}</p>}
 
-        <div className="px-4 py-3 border-t border-border space-y-2">
+        <div
+          className="px-3 py-3 border-t border-border space-y-2 shrink-0"
+          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+        >
           {draftFile && (
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span>📎 {draftFile.name}</span>
-              <button onClick={() => setDraftFile(null)} className="text-red-400">Remove</button>
+            <div className="flex items-center gap-2 text-xs text-muted px-1">
+              <span className="truncate">📎 {draftFile.name}</span>
+              <button onClick={() => setDraftFile(null)} className="text-red-400 shrink-0 py-1 px-1">Remove</button>
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -206,7 +212,7 @@ function IssuesContent() {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="shrink-0 w-9 h-9 rounded-full bg-surface-2 text-muted flex items-center justify-center"
+                  className="shrink-0 w-11 h-11 rounded-full bg-surface-2 text-muted flex items-center justify-center text-lg active:scale-95 transition-transform"
                   title="Attach evidence photo"
                 >
                   📎
@@ -218,12 +224,12 @@ function IssuesContent() {
               onChange={e => setDraftText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="flex-1 bg-surface-2 rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 min-w-0 bg-surface-2 rounded-full px-4 h-11 text-base text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <button
               onClick={handleSend}
               disabled={sending || (draftText.trim().length < 3 && !draftFile)}
-              className="shrink-0 w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center disabled:opacity-40"
+              className="shrink-0 w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center text-lg disabled:opacity-40 active:scale-95 transition-transform"
             >
               {sending ? '…' : '➤'}
             </button>
@@ -246,12 +252,12 @@ function IssuesContent() {
           onChange={e => setDraftText(e.target.value)}
           placeholder="What's going on? e.g. &quot;I don't see my attendance for last Sunday&quot;."
           rows={3}
-          className="w-full bg-surface-2 rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full bg-surface-2 rounded-xl px-3 py-2.5 text-base text-foreground placeholder:text-muted resize-none focus:outline-none focus:ring-2 focus:ring-primary"
         />
         <button
           onClick={handleStart}
           disabled={sending || draftText.trim().length < 3}
-          className="w-full bg-primary text-white text-sm font-semibold rounded-xl py-2.5 disabled:opacity-40"
+          className="w-full bg-primary text-white text-sm font-semibold rounded-xl h-12 disabled:opacity-40 active:scale-[0.98] transition-transform"
         >
           {sending ? 'Starting…' : 'Start conversation'}
         </button>

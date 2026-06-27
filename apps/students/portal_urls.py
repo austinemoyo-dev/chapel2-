@@ -11,6 +11,8 @@ from .portal_views import (
     PortalAttendanceView,
     PortalTodayView,
     PortalFaceStatusView,
+    PortalVapidKeyView,
+    PortalPushSubscribeView,
 )
 
 urlpatterns = [
@@ -24,4 +26,8 @@ urlpatterns = [
     path('attendance/', PortalAttendanceView.as_view(), name='portal-attendance'),
     path('today/', PortalTodayView.as_view(), name='portal-today'),
     path('face-status/', PortalFaceStatusView.as_view(), name='portal-face-status'),
+
+    # Web Push
+    path('push/vapid-key/', PortalVapidKeyView.as_view(), name='portal-push-vapid-key'),
+    path('push/subscribe/', PortalPushSubscribeView.as_view(), name='portal-push-subscribe'),
 ]

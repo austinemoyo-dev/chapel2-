@@ -20,6 +20,16 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+const PORTAL_SUBSCRIBE_URL = '/api/portal/push/subscribe/';
+const PORTAL_VAPID_KEY_URL = '/api/portal/push/vapid-key/';
+
+function portalAuthHeader(): Record<string, string> {
+  const token = typeof window !== 'undefined'
+    ? localStorage.getItem('portal_token') || ''
+    : '';
+  return token ? { 'X-Portal-Token': token } : {};
+}
+
 /** Request notification permission and subscribe this browser to push. */
 export async function subscribeToPush(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -67,6 +77,56 @@ export async function unsubscribeFromPush(): Promise<void> {
   await fetch(SUBSCRIBE_URL, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
+/** Student portal equivalent of subscribeToPush() — uses X-Portal-Token auth. */
+export async function subscribeToPortalPush(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return;
+
+  const keyRes = await fetch(PORTAL_VAPID_KEY_URL, { headers: portalAuthHeader() });
+  if (!keyRes.ok) return;
+  const { public_key } = await keyRes.json() as { public_key: string };
+  if (!public_key) return;
+
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(public_key),
+  });
+
+  const { endpoint, keys } = subscription.toJSON() as {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  };
+
+  await fetch(PORTAL_SUBSCRIBE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...portalAuthHeader() },
+    body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }),
+  });
+}
+
+/** Student portal equivalent of unsubscribeFromPush(). */
+export async function unsubscribeFromPortalPush(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!('serviceWorker' in navigator)) return;
+
+  const registration  = await navigator.serviceWorker.ready;
+  const subscription  = await registration.pushManager.getSubscription();
+  if (!subscription) return;
+
+  const endpoint = subscription.endpoint;
+  await subscription.unsubscribe();
+
+  await fetch(PORTAL_SUBSCRIBE_URL, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...portalAuthHeader() },
     body: JSON.stringify({ endpoint }),
   });
 }

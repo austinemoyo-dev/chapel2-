@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsAdminOrAbove
+from apps.attendance.push import send_push_to_student
 from apps.audit.utils import log_action
 
 from .models import IssueReport, IssueMessage, IssueMessageSenderChoices, IssueStatusChoices, IssueSeverityChoices
@@ -131,6 +132,8 @@ class IssueAdminMessageView(APIView):
             issue.status = IssueStatusChoices.IN_REVIEW
             issue.save(update_fields=['status', 'updated_at'])
 
+        send_push_to_student(issue.student, f'Reply on ticket {issue.ticket_code}', text[:120], '/student/issues')
+
         return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)
 
 
@@ -163,4 +166,12 @@ class IssueAdminResolveView(APIView):
             target_id=issue.id,
             new_value={'message': closing_message},
         )
+
+        send_push_to_student(
+            issue.student,
+            f'Ticket {issue.ticket_code} resolved',
+            closing_message or 'Your issue has been resolved.',
+            '/student/issues',
+        )
+
         return Response(IssueReportAdminDetailSerializer(issue, context={'request': request}).data)

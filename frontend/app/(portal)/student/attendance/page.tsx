@@ -111,7 +111,7 @@ export default function StudentAttendancePage() {
                   {(svc.status === 'invalid' || svc.status === 'missed') && (
                     <Link
                       href={`/student/issues?prefill=${encodeURIComponent(`Regarding ${svc.service_name} on ${svc.scheduled_date}: `)}`}
-                      className="text-[10px] text-primary underline mt-2 ml-4 inline-block"
+                      className="text-xs text-primary underline mt-1 ml-4 inline-block py-1.5"
                     >
                       Report a problem
                     </Link>

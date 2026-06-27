@@ -472,3 +472,57 @@ class PortalFaceStatusView(APIView):
             'required_samples': 3,
             'remaining': max(0, 3 - approved),
         })
+
+
+class PortalVapidKeyView(APIView):
+    """
+    GET /api/portal/push/vapid-key/
+    Returns the VAPID public key so the browser can subscribe to push.
+    Same key pair used for admin push — audience is distinguished by which
+    subscription table (StudentPushSubscription vs PushSubscription) holds it.
+    """
+    authentication_classes = [StudentPortalAuthentication]
+    permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
+
+    def get(self, request):
+        return Response({'public_key': settings.VAPID_PUBLIC_KEY})
+
+
+class PortalPushSubscribeView(APIView):
+    """
+    POST /api/portal/push/subscribe/   — save a push subscription for the student
+    DELETE /api/portal/push/subscribe/ — remove it (called on unsubscribe)
+    """
+    authentication_classes = [StudentPortalAuthentication]
+    permission_classes = [IsStudentAuthenticated]
+    throttle_classes = []
+
+    def post(self, request):
+        from apps.students.models import StudentPushSubscription
+
+        endpoint = request.data.get('endpoint', '').strip()
+        p256dh   = request.data.get('p256dh', '').strip()
+        auth     = request.data.get('auth', '').strip()
+
+        if not endpoint or not p256dh or not auth:
+            return Response(
+                {'error': 'endpoint, p256dh, and auth are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        StudentPushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={'student': request.user, 'p256dh': p256dh, 'auth': auth},
+        )
+        return Response({'message': 'Subscribed.'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        from apps.students.models import StudentPushSubscription
+
+        endpoint = request.data.get('endpoint', '').strip()
+        if endpoint:
+            StudentPushSubscription.objects.filter(
+                student=request.user, endpoint=endpoint
+            ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

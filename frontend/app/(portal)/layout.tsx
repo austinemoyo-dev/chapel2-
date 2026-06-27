@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import api from '@/lib/api/client';
+import { subscribeToPortalPush } from '@/lib/notifications';
 
 // ─────────────────────────────────────────────
 // Portal Auth Context
@@ -71,6 +72,14 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
     }
   }, [isLoading, student, isAuthPage, router]);
 
+  // Ask for notification permission once logged in, so replies/resolutions
+  // on issue reports reach the student even when the portal isn't open.
+  useEffect(() => {
+    if (!isLoading && student) {
+      subscribeToPortalPush().catch(() => {});
+    }
+  }, [isLoading, student]);
+
   const login = useCallback((t: string, s: PortalStudent) => {
     localStorage.setItem(TOKEN_KEY, t);
     localStorage.setItem(STUDENT_KEY, JSON.stringify(s));
@@ -92,7 +101,7 @@ export default function PortalLayout({ children }: { children: ReactNode }) {
   return (
     <PortalAuthContext.Provider value={{ student, token, login, logout, isLoading }}>
       {student && !isAuthPage && <PortalNav student={student} onLogout={logout} />}
-      <div className={student && !isAuthPage ? 'pb-20' : ''}>
+      <div style={student && !isAuthPage ? { paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' } : undefined}>
         {children}
       </div>
     </PortalAuthContext.Provider>
@@ -118,7 +127,10 @@ function PortalNav({ student, onLogout }: { student: PortalStudent; onLogout: ()
     href === '/student' ? pathname === '/student' : pathname.startsWith(href);
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 bg-surface-1 border-t border-border">
+    <nav
+      className="fixed bottom-0 inset-x-0 z-50 bg-surface-1 border-t border-border"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
         {tabs.map(tab => {
           const active = isActive(tab.href);
@@ -126,7 +138,7 @@ function PortalNav({ student, onLogout }: { student: PortalStudent; onLogout: ()
             <button
               key={tab.href}
               onClick={() => router.push(tab.href)}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-xl transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-4 py-2 min-h-11 rounded-xl transition-colors active:scale-95 ${
                 active ? 'text-primary' : 'text-muted'
               }`}
             >

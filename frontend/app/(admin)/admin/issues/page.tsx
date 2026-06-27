@@ -353,6 +353,18 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
               </div>
             )}
 
+            {!(detail.resolution_type === 'fix_needed' && detail.suggested_fix)
+              && detail.status !== 'resolved' && detail.status !== 'dismissed' && (
+              <div className="p-3 rounded-xl bg-surface-2 border border-border space-y-2">
+                <p className="text-xs font-semibold text-muted">
+                  No automatic fix for this one — reply below, then mark it fixed when you&apos;re done.
+                </p>
+                <Button variant="success" size="sm" className="w-full" onClick={handleResolve} loading={saving}>
+                  Mark as Fixed
+                </Button>
+              </div>
+            )}
+
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted uppercase tracking-wider">Conversation</p>
               {detail.messages.map(msg => {

@@ -74,6 +74,16 @@ html {
   /* honour iOS notch / Dynamic Island safe areas */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  /* stop pull-to-refresh / rubber-banding from fighting with in-app scroll areas */
+  overscroll-behavior-y: none;
+}
+
+@media (max-width: 640px) {
+  /* iOS Safari auto-zooms the page on focus of any input/textarea/select
+     under 16px — this is the standard fix, not a cosmetic preference. */
+  input, select, textarea {
+    font-size: 16px;
+  }
 }
 
 body {
