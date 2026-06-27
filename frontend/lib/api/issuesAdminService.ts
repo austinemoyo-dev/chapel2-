@@ -32,6 +32,7 @@ export interface FlaggedServiceDetail {
   has_record: boolean;
   is_valid: boolean | null;
   sync_validation_result: string | null;
+  attendance_record_id: string | null;
 }
 
 export interface SuggestedFix {

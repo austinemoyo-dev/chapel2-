@@ -9,6 +9,7 @@ import {
   type IssueSeverity,
 } from '@/lib/api/issuesAdminService';
 import { adminService } from '@/lib/api/adminService';
+import { serviceService, type Service } from '@/lib/api/serviceService';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -145,6 +146,19 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
   const [fixIsValid, setFixIsValid] = useState(true);
   const [applyingFix, setApplyingFix] = useState(false);
 
+  // Inline per-service fix
+  const [fixingServiceId, setFixingServiceId] = useState<string | null>(null);
+  const [fixedServices, setFixedServices] = useState<Set<string>>(new Set());
+  const [serviceFixErrors, setServiceFixErrors] = useState<Record<string, string>>({});
+
+  // Search & mark state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchDate, setSearchDate] = useState('');
+  const [searchResults, setSearchResults] = useState<Service[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFixingId, setSearchFixingId] = useState<string | null>(null);
+  const [searchFixedIds, setSearchFixedIds] = useState<Set<string>>(new Set());
+
   const load = useCallback(() => {
     issuesAdminService.get(id)
       .then(d => {
@@ -260,6 +274,83 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
     }
   };
 
+  const isAttendanceIssue = detail?.category === 'wrong_status' || detail?.category === 'scan_failed';
+
+  const handleInlineMarkPresent = async (serviceId: string) => {
+    if (!detail) return;
+    setFixingServiceId(serviceId);
+    setServiceFixErrors(prev => { const n = {...prev}; delete n[serviceId]; return n; });
+    try {
+      const reason = `Approved via ${detail.ticket_code}: ${detail.ai_summary || 'Attendance correction'}`.slice(0, 500);
+      await adminService.backdateAttendance({
+        student_id: detail.student,
+        service_ids: [serviceId],
+        backdate_type: 'valid',
+        reason_note: reason,
+      });
+      setFixedServices(prev => new Set(prev).add(serviceId));
+      load();
+    } catch (e) {
+      setServiceFixErrors(prev => ({ ...prev, [serviceId]: (e as Error).message || 'Failed to mark present' }));
+    } finally {
+      setFixingServiceId(null);
+    }
+  };
+
+  const handleInlineMarkValid = async (serviceId: string, recordId: string) => {
+    if (!detail) return;
+    setFixingServiceId(serviceId);
+    setServiceFixErrors(prev => { const n = {...prev}; delete n[serviceId]; return n; });
+    try {
+      const reason = `Approved via ${detail.ticket_code}: ${detail.ai_summary || 'Attendance correction'}`.slice(0, 500);
+      await adminService.editAttendance(recordId, {
+        is_valid: true,
+        reason_note: reason,
+      });
+      setFixedServices(prev => new Set(prev).add(serviceId));
+      load();
+    } catch (e) {
+      setServiceFixErrors(prev => ({ ...prev, [serviceId]: (e as Error).message || 'Failed to mark valid' }));
+    } finally {
+      setFixingServiceId(null);
+    }
+  };
+
+  const handleSearchByDate = async () => {
+    if (!searchDate) return;
+    setSearchLoading(true);
+    setSearchResults(null);
+    try {
+      const res = await serviceService.listServices({ scheduled_date: searchDate, is_cancelled: 'false' });
+      const list = Array.isArray(res) ? res : res.results;
+      setSearchResults(list);
+    } catch (e) {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSearchMarkPresent = async (serviceId: string) => {
+    if (!detail) return;
+    setSearchFixingId(serviceId);
+    try {
+      const reason = `Approved via ${detail.ticket_code}: ${detail.ai_summary || 'Attendance correction'}`.slice(0, 500);
+      await adminService.backdateAttendance({
+        student_id: detail.student,
+        service_ids: [serviceId],
+        backdate_type: 'valid',
+        reason_note: reason,
+      });
+      setSearchFixedIds(prev => new Set(prev).add(serviceId));
+      load();
+    } catch (e) {
+      setError((e as Error).message || 'Failed to mark present');
+    } finally {
+      setSearchFixingId(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <Card variant="glass" className="w-full max-w-lg flex flex-col max-h-[90vh]">
@@ -289,16 +380,34 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
             )}
 
             {detail.flagged_services_detail.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <p className="text-xs font-semibold text-muted uppercase tracking-wider">Related Services</p>
-                {detail.flagged_services_detail.map(s => (
-                  <div key={s.service_id} className="text-xs p-2 rounded-lg bg-surface-2 flex items-center justify-between">
-                    <span className="text-foreground">{s.label} — {s.scheduled_date}</span>
-                    <Badge variant={s.has_record ? (s.is_valid ? 'success' : 'danger') : 'default'} size="sm">
-                      {s.has_record ? (s.is_valid ? 'Valid' : 'Invalid') : 'No record'}
-                    </Badge>
-                  </div>
-                ))}
+                {detail.flagged_services_detail.map(s => {
+                  const isFixed = fixedServices.has(s.service_id);
+                  const isFixing = fixingServiceId === s.service_id;
+                  const fixErr = serviceFixErrors[s.service_id];
+                  return (
+                    <div key={s.service_id} className="text-xs p-2.5 rounded-xl bg-surface-2 border border-border/50 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-foreground font-medium">{s.label} — {s.scheduled_date}</span>
+                        <Badge variant={isFixed ? 'success' : s.has_record ? (s.is_valid ? 'success' : 'danger') : 'default'} size="sm">
+                          {isFixed ? '✓ Fixed' : s.has_record ? (s.is_valid ? 'Valid' : 'Invalid') : 'No record'}
+                        </Badge>
+                      </div>
+                      {!isFixed && !s.has_record && (
+                        <Button variant="primary" size="xs" className="w-full" onClick={() => handleInlineMarkPresent(s.service_id)} loading={isFixing} disabled={!!fixingServiceId}>
+                          Mark Present
+                        </Button>
+                      )}
+                      {!isFixed && s.has_record && !s.is_valid && s.attendance_record_id && (
+                        <Button variant="success" size="xs" className="w-full" onClick={() => handleInlineMarkValid(s.service_id, s.attendance_record_id!)} loading={isFixing} disabled={!!fixingServiceId}>
+                          Mark Valid
+                        </Button>
+                      )}
+                      {fixErr && <p className="text-[10px] text-danger">{fixErr}</p>}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -362,6 +471,62 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
                 <Button variant="success" size="sm" className="w-full" onClick={handleResolve} loading={saving}>
                   Mark as Fixed
                 </Button>
+              </div>
+            )}
+
+            {isAttendanceIssue && detail.status !== 'resolved' && detail.status !== 'dismissed' && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowSearch(!showSearch)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors"
+                >
+                  <svg className={`w-3.5 h-3.5 transition-transform ${showSearch ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  Search &amp; Mark Another Date
+                </button>
+                {showSearch && (
+                  <div className="p-3 rounded-xl bg-surface-2 border border-border space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={searchDate}
+                        onChange={e => setSearchDate(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl bg-surface-3 border border-border text-xs text-foreground
+                                   focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <Button variant="primary" size="xs" onClick={handleSearchByDate} loading={searchLoading} disabled={!searchDate}>
+                        Search
+                      </Button>
+                    </div>
+                    {searchResults !== null && searchResults.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] text-muted font-medium">Services on {searchDate}:</p>
+                        {searchResults.map(svc => {
+                          const done = searchFixedIds.has(svc.id);
+                          return (
+                            <div key={svc.id} className="flex items-center justify-between p-2 rounded-lg bg-surface-3 border border-border/50">
+                              <div className="min-w-0 flex-1 mr-2">
+                                <p className="text-xs font-medium text-foreground truncate">{svc.name || `${svc.service_type} ${svc.service_group}`}</p>
+                                <p className="text-[10px] text-muted">{svc.scheduled_date}</p>
+                              </div>
+                              {done ? (
+                                <Badge variant="success" size="sm">✓ Marked</Badge>
+                              ) : (
+                                <Button variant="primary" size="xs" onClick={() => handleSearchMarkPresent(svc.id)} loading={searchFixingId === svc.id} disabled={!!searchFixingId}>
+                                  Mark Present
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {searchResults !== null && searchResults.length === 0 && !searchLoading && (
+                      <p className="text-[10px] text-muted text-center py-2">No services found for {searchDate}.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

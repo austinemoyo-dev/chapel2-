@@ -113,6 +113,7 @@ export const serviceService = {
     service_type?: string;
     service_group?: string;
     is_cancelled?: string;
+    scheduled_date?: string;
   }) => {
     const searchParams = new URLSearchParams();
     if (params) {

@@ -111,6 +111,7 @@ class IssueReportAdminDetailSerializer(serializers.ModelSerializer):
                 'has_record': record is not None,
                 'is_valid': record.is_valid if record else None,
                 'sync_validation_result': record.sync_validation_result if record else None,
+                'attendance_record_id': str(record.id) if record else None,
             })
         return detail
 

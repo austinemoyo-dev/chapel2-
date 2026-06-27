@@ -186,6 +186,10 @@ class ServiceListCreateView(generics.ListCreateAPIView):
         if service_group:
             qs = qs.filter(service_group=service_group)
 
+        scheduled_date = self.request.query_params.get('scheduled_date')
+        if scheduled_date:
+            qs = qs.filter(scheduled_date=scheduled_date)
+
         is_cancelled = self.request.query_params.get('is_cancelled')
         if is_cancelled is not None:
             qs = qs.filter(is_cancelled=is_cancelled.lower() == 'true')
