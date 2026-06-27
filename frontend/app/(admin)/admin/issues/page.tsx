@@ -321,7 +321,7 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
     setSearchLoading(true);
     setSearchResults(null);
     try {
-      const res = await serviceService.listServices({ scheduled_date: searchDate, is_cancelled: 'false' });
+      const res = await serviceService.listServices({ scheduled_date: searchDate });
       const list = Array.isArray(res) ? res : res.results;
       setSearchResults(list);
     } catch (e) {
@@ -386,6 +386,7 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
                   const isFixed = fixedServices.has(s.service_id);
                   const isFixing = fixingServiceId === s.service_id;
                   const fixErr = serviceFixErrors[s.service_id];
+                  const needsAction = detail.status !== 'resolved' && detail.status !== 'dismissed';
                   return (
                     <div key={s.service_id} className="text-xs p-2.5 rounded-xl bg-surface-2 border border-border/50 space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -394,14 +395,19 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
                           {isFixed ? '✓ Fixed' : s.has_record ? (s.is_valid ? 'Valid' : 'Invalid') : 'No record'}
                         </Badge>
                       </div>
-                      {!isFixed && !s.has_record && (
+                      {needsAction && !isFixed && !s.has_record && (
                         <Button variant="primary" size="xs" className="w-full" onClick={() => handleInlineMarkPresent(s.service_id)} loading={isFixing} disabled={!!fixingServiceId}>
                           Mark Present
                         </Button>
                       )}
-                      {!isFixed && s.has_record && !s.is_valid && s.attendance_record_id && (
+                      {needsAction && !isFixed && s.has_record && !s.is_valid && s.attendance_record_id && (
                         <Button variant="success" size="xs" className="w-full" onClick={() => handleInlineMarkValid(s.service_id, s.attendance_record_id!)} loading={isFixing} disabled={!!fixingServiceId}>
                           Mark Valid
+                        </Button>
+                      )}
+                      {needsAction && !isFixed && s.has_record && s.is_valid && (
+                        <Button variant="outline" size="xs" className="w-full" onClick={() => handleInlineMarkPresent(s.service_id)} loading={isFixing} disabled={!!fixingServiceId}>
+                          Re-mark Present
                         </Button>
                       )}
                       {fixErr && <p className="text-[10px] text-danger">{fixErr}</p>}
@@ -480,12 +486,12 @@ function IssueThreadModal({ id, onClose, onChanged }: { id: string; onClose: () 
                   onClick={() => setShowSearch(!showSearch)}
                   className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover transition-colors"
                 >
-                  <svg className={`w-3.5 h-3.5 transition-transform ${showSearch ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className={`w-3.5 h-3.5 transition-transform ${showSearch || detail.flagged_services_detail.length === 0 ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                   Search &amp; Mark Another Date
                 </button>
-                {showSearch && (
+                {(showSearch || detail.flagged_services_detail.length === 0) && (
                   <div className="p-3 rounded-xl bg-surface-2 border border-border space-y-2.5">
                     <div className="flex items-center gap-2">
                       <input
